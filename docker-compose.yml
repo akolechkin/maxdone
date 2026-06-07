@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: maxdone
+      POSTGRES_USER: maxdone
+      POSTGRES_PASSWORD: maxdone
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maxdone"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_DEBUG: "1"
+      DATABASE_URL: postgres://maxdone:maxdone@db:5432/maxdone
+      DJANGO_SECRET_KEY: dev-insecure-change-me
+    depends_on:
+      db:
+        condition: service_healthy
+
+  tailwind:
+    build: .
+    command: sh -c "npm install && npx tailwindcss -i ./theme/input.css -o ./static/css/app.css --watch"
+    volumes:
+      - .:/app
+    profiles: ["assets"]
+
+volumes:
+  pgdata:

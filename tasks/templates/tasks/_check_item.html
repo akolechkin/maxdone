@@ -1,0 +1,5 @@
+<div id="check-{{ item.id }}" class="flex items-center gap-2 text-xs py-0.5">
+  <button hx-post="{% url 'toggle_check_item' item.id %}" hx-target="#check-{{ item.id }}" hx-swap="outerHTML"
+          class="w-4 h-4 rounded border {% if item.done %}bg-teal border-teal{% else %}border-line-strong{% endif %}"></button>
+  <span class="{% if item.done %}line-through text-ink-faint{% endif %}">{{ item.title }}</span>
+</div>

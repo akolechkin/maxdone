@@ -1,0 +1,17 @@
+<div id="task-{{ task.id }}" class="flex gap-2.5 py-2.5 border-b border-line">
+  <button hx-post="{% url 'toggle_done' task.id %}" hx-target="#task-{{ task.id }}" hx-swap="outerHTML"
+          class="w-[18px] h-[18px] rounded-[5px] border-[1.5px] mt-0.5 shrink-0
+                 {% if task.done %}bg-teal border-teal{% else %}border-line-strong{% endif %}"></button>
+  <div class="flex-1 min-w-0 cursor-pointer"
+       hx-get="{% url 'task_detail' task.id %}" hx-target="#editor-body"
+       @click="editorOpen=true">
+    <div class="text-sm leading-snug {% if task.done %}line-through text-ink-faint{% endif %}">{{ task.title }}</div>
+    <div class="flex gap-1.5 mt-1.5 flex-wrap">
+      {% if task.goal %}<span class="chip bg-teal-soft text-teal-fg">{{ task.goal.title }}</span>{% endif %}
+      {% if task.context %}<span class="chip bg-surface-alt text-ink-muted">@{{ task.context.title }}</span>{% endif %}
+      {% with done=task.checklist.all|length %}
+        {% if done %}<span class="chip text-ink-faint">{{ task.checklist.all|length }} пункт.</span>{% endif %}
+      {% endwith %}
+    </div>
+  </div>
+</div>

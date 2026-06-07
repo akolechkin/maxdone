@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .hairline { @apply border-line; }
+  .btn-accent {
+    @apply inline-flex items-center justify-center gap-2 bg-accent text-white
+           text-sm px-4 py-2 rounded-md hover:opacity-90 transition;
+  }
+  .nav-item {
+    @apply flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-ink-muted
+           hover:bg-surface-alt cursor-pointer transition;
+  }
+  .nav-item-active { @apply bg-surface-alt text-ink; }
+  .chip {
+    @apply text-[11px] px-2 py-0.5 rounded-md;
+  }
+}

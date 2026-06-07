@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.sqlite3
+.env
+staticfiles/
+static/css/app.css
+node_modules/
+.DS_Store
+*.tar.gz

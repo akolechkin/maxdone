@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="p-3 max-w-[1100px] mx-auto" x-data="{ editorOpen: false }">
+  <div class="grid grid-cols-[200px_minmax(0,1fr)] bg-surface border border-line rounded-lg overflow-hidden min-h-[560px]">
+
+    {# ===== persistent sidebar ===== #}
+    <aside class="border-r border-line p-3.5 flex flex-col">
+      <div class="flex items-center gap-2 px-2 pb-3.5">
+        <div class="w-7 h-7 rounded-md bg-accent text-white grid place-items-center text-sm font-medium">M</div>
+        <span class="text-base font-medium">maxdone</span>
+      </div>
+
+      <a href="{% url 'task_detail' tasks.first.id %}" @click.prevent="editorOpen=true"
+         hx-get="{% if tasks.first %}{% url 'task_detail' tasks.first.id %}{% endif %}"
+         hx-target="#editor-body" class="btn-accent w-full mb-3.5">
+        <span>+ Новая задача</span>
+      </a>
+
+      <nav class="space-y-0.5">
+        {% for key, label in horizon_labels.items %}{% endfor %}
+        <a href="?h=TODAY" hx-get="?h=TODAY" hx-target="#task-list" hx-push-url="true"
+           class="nav-item {% if horizon == 'TODAY' %}nav-item-active{% endif %}">
+          <span class="flex-1">Сегодня</span><span class="text-xs text-ink-faint">{{ counts.TODAY }}</span></a>
+        <a href="?h=WEEK" hx-get="?h=WEEK" hx-target="#task-list" hx-push-url="true"
+           class="nav-item {% if horizon == 'WEEK' %}nav-item-active{% endif %}">
+          <span class="flex-1">Неделя</span><span class="text-xs text-ink-faint">{{ counts.WEEK }}</span></a>
+        <a href="?h=LATER" hx-get="?h=LATER" hx-target="#task-list" hx-push-url="true"
+           class="nav-item {% if horizon == 'LATER' %}nav-item-active{% endif %}">
+          <span class="flex-1">Позже</span><span class="text-xs text-ink-faint">{{ counts.LATER }}</span></a>
+        <a href="?h=INBOX" hx-get="?h=INBOX" hx-target="#task-list" hx-push-url="true"
+           class="nav-item {% if horizon == 'INBOX' %}nav-item-active{% endif %}">
+          <span class="flex-1">Входящие</span><span class="text-xs text-ink-faint">{{ counts.INBOX }}</span></a>
+      </nav>
+
+      <div class="border-t border-line mt-2.5 pt-2">
+        <div class="text-[10px] text-ink-faint px-2 py-1">Группировка</div>
+        <div class="nav-item"><span class="flex-1">Цели</span><span class="text-xs text-ink-faint">{{ goals.count }}</span></div>
+        <div class="nav-item"><span class="flex-1">Контексты</span><span class="text-xs text-ink-faint">{{ contexts.count }}</span></div>
+      </div>
+
+      <div class="mt-auto border-t border-line pt-2">
+        <div class="flex items-center gap-2 px-2 py-1.5">
+          <div class="w-6 h-6 rounded-full bg-teal-soft text-teal-fg grid place-items-center text-[11px] font-medium">
+            {{ request.user.username|slice:":2"|upper }}</div>
+          <span class="text-sm flex-1">{{ request.user.username }}</span>
+        </div>
+      </div>
+    </aside>
+
+    {# ===== main column ===== #}
+    <div class="flex min-w-0">
+      <div class="flex-1 min-w-0 flex flex-col">
+        <div class="flex border-b border-line px-2">
+          <div class="px-4 py-3 text-sm text-accent font-medium border-b-2 border-accent">Задачи</div>
+          <div class="px-4 py-3 text-sm text-ink-muted cursor-pointer">Цели</div>
+          <div class="px-4 py-3 text-sm text-ink-muted cursor-pointer">Шаблоны</div>
+          <div class="px-4 py-3 text-sm text-ink-muted cursor-pointer">Лента</div>
+        </div>
+
+        <div id="task-list" class="p-4 flex-1">
+          {% include "tasks/_task_list.html" %}
+        </div>
+      </div>
+
+      {# ===== editor panel ===== #}
+      <div class="border-l border-line transition-all overflow-hidden"
+           :class="editorOpen ? 'w-[300px]' : 'w-0'">
+        <div class="w-[300px] p-4" id="editor-body">
+          <div class="text-sm text-ink-faint">Выберите задачу</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

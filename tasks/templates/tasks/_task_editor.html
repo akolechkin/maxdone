@@ -1,0 +1,26 @@
+<div class="flex items-center gap-2.5 mb-3.5">
+  <span class="text-xs text-ink-faint flex-1">Редактирование</span>
+  <button @click="editorOpen=false" class="text-ink-muted text-lg leading-none">&times;</button>
+</div>
+<div class="flex gap-2.5 mb-3.5">
+  <div class="w-[18px] h-[18px] rounded-[5px] border-[1.5px] border-line-strong mt-0.5 shrink-0"></div>
+  <div class="text-[15px] font-medium leading-snug">{{ task.title }}</div>
+</div>
+<div class="flex gap-1 mb-3.5 bg-surface-alt rounded-md p-1">
+  {% for val, label in horizons %}
+    <div class="flex-1 text-center text-[10px] py-1.5 rounded-md
+                {% if task.task_type == val %}bg-accent-soft text-accent-fg font-medium{% else %}text-ink-muted{% endif %}">
+      {{ label }}</div>
+  {% endfor %}
+</div>
+<div class="space-y-1.5 text-xs">
+  <div class="flex gap-2.5 py-1"><span class="text-ink-muted w-16">Цель</span><span>{{ task.goal.title|default:"—" }}</span></div>
+  <div class="flex gap-2.5 py-1"><span class="text-ink-muted w-16">Контекст</span><span>{% if task.context %}@{{ task.context.title }}{% else %}—{% endif %}</span></div>
+  <div class="flex gap-2.5 py-1"><span class="text-ink-muted w-16">Срок</span><span>{{ task.due_date|date:"d M"|default:"—" }}</span></div>
+  <div class="flex gap-2.5 py-1"><span class="text-ink-muted w-16">Повтор</span><span>{{ task.recur_rule|default:"—" }}</span></div>
+  <div class="flex gap-2.5 py-1"><span class="text-ink-muted w-16">Скрыть до</span><span>{{ task.hide_until_date|date:"d M"|default:"—" }}</span></div>
+</div>
+<div class="mt-3 border-t border-line pt-2.5">
+  <div class="text-[11px] text-ink-muted mb-1.5">Чек-лист</div>
+  {% for item in task.checklist.all %}{% include "tasks/_check_item.html" %}{% endfor %}
+</div>

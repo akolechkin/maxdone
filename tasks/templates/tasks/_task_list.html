@@ -1,0 +1,9 @@
+<div class="flex items-center justify-between mb-3">
+  <h3 class="text-lg font-medium m-0">{{ horizon_label }}</h3>
+  <span class="text-xs text-ink-faint">по приоритету</span>
+</div>
+{% for task in tasks %}
+  {% include "tasks/_task_row.html" %}
+{% empty %}
+  <div class="text-sm text-ink-faint py-8 text-center">Здесь пока пусто</div>
+{% endfor %}
