@@ -15,33 +15,52 @@ HORIZON_LABELS = {
 
 
 def _visible_tasks(user):
-    """BR-1: active, non-archived; hidden ones surface once hide_until_date passes."""
+    """BR-1: single source of the visibility filter (used by the BR arbiter tests)."""
     return services.visible_qs(Task.objects.filter(owner=user))
 
 
-def _root_tasks(user):
-    """BR-7: the board lists/counts only top-level tasks; subtasks live under parents."""
-    return _visible_tasks(user).filter(parent__isnull=True)
-
-
 def _horizon_counts(user):
-    tasks = _root_tasks(user)
+    """BR-2: visible root-level tasks per horizon."""
+    tasks = _visible_tasks(user).filter(parent__isnull=True)
     return {key: tasks.filter(task_type=val).count() for key, (_, val) in HORIZON_LABELS.items()}
+
+
+def _board_tasks(request):
+    """BR-7 + BR-12: root-level tasks for the board list, honoring the show_hidden setting."""
+    qs = Task.objects.filter(owner=request.user, parent__isnull=True, archived=False, done=False)
+    if not request.session.get("show_hidden"):
+        now = timezone.now()
+        qs = qs.exclude(state=Task.State.HIDDEN, hide_until_date__gt=now)
+    return qs
 
 
 HORIZON_NAV = [(k, lbl) for k, (lbl, _) in HORIZON_LABELS.items()]
 
 
+SORT_ORDERS = {
+    "priority": ("priority", "-created"),   # default
+    "due": ("due_date",),                   # nulls last on Postgres ASC
+    "recent": ("-created",),
+    "updated": ("-modified",),
+}
+
+
 def _board_context(request, horizon="TODAY"):
     label, value = HORIZON_LABELS.get(horizon, HORIZON_LABELS["TODAY"])
+    sort = request.session.get("sort", "priority")
+    order = SORT_ORDERS.get(sort, SORT_ORDERS["priority"])
     return {
-        "tasks": _root_tasks(request.user).filter(task_type=value),
+        "tasks": _board_tasks(request).filter(task_type=value).order_by(*order),
+        "sort": sort,
         "horizon": horizon,
+        "horizon_value": value,
         "horizon_label": label,
         "horizon_nav": HORIZON_NAV,
         "counts": _horizon_counts(request.user),
         "goals": Goal.objects.filter(owner=request.user, archived=False),
         "contexts": Context.objects.filter(owner=request.user, archived=False),
+        "show_hidden": bool(request.session.get("show_hidden")),
+        "quick_add": bool(request.session.get("quick_add")),
     }
 
 
@@ -63,7 +82,15 @@ def task_detail(request, task_id):
 
 @login_required
 def task_new(request):
-    form = TaskForm(user=request.user, initial={"task_type": Task.Horizon.TODAY})
+    # BR-15: prefill from the last-used goal/context/is_project (task preferences).
+    initial = {"task_type": Task.Horizon.TODAY}
+    if request.session.get("pref_goal"):
+        initial["goal"] = request.session["pref_goal"]
+    if request.session.get("pref_context"):
+        initial["context"] = request.session["pref_context"]
+    if request.session.get("pref_is_project"):
+        initial["is_project"] = True
+    form = TaskForm(user=request.user, initial=initial)
     return render(request, "tasks/_task_editor.html", {"task": None, "form": form})
 
 
@@ -77,6 +104,10 @@ def task_create(request):
         task.priority = services.next_priority(request.user)
         services.apply_hidden_state(task)
         task.save()
+        # BR-15: remember this task's goal/context/is_project for the next new task.
+        request.session["pref_goal"] = str(task.goal_id or "")
+        request.session["pref_context"] = str(task.context_id or "")
+        request.session["pref_is_project"] = task.is_project
         ctx = _board_context(request, request.GET.get("h", "TODAY"))
         resp = render(request, "tasks/_task_list.html", ctx)
         resp["HX-Trigger"] = "taskSaved"
@@ -162,6 +193,18 @@ def subtask_add(request, task_id):
 
 @login_required
 @require_http_methods(["POST"])
+def task_copy(request, task_id):
+    """Feature catalog #7: duplicate the task (with checklist)."""
+    task = get_object_or_404(Task, id=task_id, owner=request.user)
+    services.copy_task(task)
+    ctx = _board_context(request, request.GET.get("h", "TODAY"))
+    resp = render(request, "tasks/_task_list.html", ctx)
+    resp["HX-Trigger"] = "taskSaved"
+    return resp
+
+
+@login_required
+@require_http_methods(["POST"])
 def task_move(request, task_id, horizon):
     task = get_object_or_404(Task, id=task_id, owner=request.user)
     services.move_task(task, horizon)
@@ -228,6 +271,41 @@ def archive_clear(request):
     Task.objects.filter(owner=request.user, archived=True).delete()
     Goal.objects.filter(owner=request.user, archived=True).delete()
     return render(request, "tasks/_archive_list.html", _archive_context(request.user))
+
+
+_TOGGLE_KEYS = {"show_hidden", "quick_add"}
+
+
+@login_required
+@require_http_methods(["POST"])
+def toggle_setting(request, key):
+    """BR-11/12/14: flip a boolean display setting stored in the session."""
+    if key in _TOGGLE_KEYS:
+        request.session[key] = not request.session.get(key)
+    ctx = _board_context(request, request.GET.get("h", "TODAY"))
+    return render(request, "tasks/_task_list.html", ctx)
+
+
+@login_required
+@require_http_methods(["POST"])
+def set_sort(request):
+    """BR-13: choose the task list sort order (stored in the session)."""
+    sort = request.POST.get("sort", "priority")
+    if sort in SORT_ORDERS:
+        request.session["sort"] = sort
+    ctx = _board_context(request, request.GET.get("h", "TODAY"))
+    return render(request, "tasks/_task_list.html", ctx)
+
+
+@login_required
+def completed_list(request):
+    """BR-10: tasks marked done (not archived), newest completion first."""
+    tasks = (Task.objects.filter(owner=request.user, archived=False, done=True)
+             .order_by("-completion_date"))
+    ctx = {"tasks": tasks}
+    if request.headers.get("HX-Request"):
+        return render(request, "tasks/_completed_list.html", ctx)
+    return render(request, "tasks/completed.html", ctx)
 
 
 @login_required

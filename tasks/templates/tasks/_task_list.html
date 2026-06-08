@@ -2,6 +2,32 @@
   <h3 class="text-lg font-medium m-0">{{ horizon_label }}</h3>
   <span class="text-xs text-ink-faint">{{ tasks|length }} задач</span>
 </div>
+<div class="flex items-center gap-2 mb-3 text-xs">
+  <button hx-post="{% url 'toggle_setting' 'show_hidden' %}?h={{ horizon }}" hx-target="#task-list"
+          class="px-2 py-1 rounded-md border {% if show_hidden %}bg-accent-soft text-accent-fg border-accent{% else %}border-line text-ink-muted{% endif %}">
+    показать скрытые
+  </button>
+  <select hx-post="{% url 'set_sort' %}?h={{ horizon }}" hx-target="#task-list" name="sort"
+          class="px-2 py-1 rounded-md border border-line text-ink-muted bg-transparent">
+    <option value="priority" {% if sort == 'priority' %}selected{% endif %}>по приоритету</option>
+    <option value="due" {% if sort == 'due' %}selected{% endif %}>по сроку</option>
+    <option value="recent" {% if sort == 'recent' %}selected{% endif %}>сначала новые</option>
+    <option value="updated" {% if sort == 'updated' %}selected{% endif %}>недавно изменённые</option>
+  </select>
+  <button hx-post="{% url 'toggle_setting' 'quick_add' %}?h={{ horizon }}" hx-target="#task-list"
+          class="px-2 py-1 rounded-md border {% if quick_add %}bg-accent-soft text-accent-fg border-accent{% else %}border-line text-ink-muted{% endif %}">
+    быстрое добавление
+  </button>
+</div>
+{% if quick_add %}
+<form hx-post="{% url 'task_create' %}?h={{ horizon }}" hx-target="#task-list"
+      class="flex items-center gap-2 mb-3 pb-2 border-b border-line" @submit="$nextTick(()=>$el.reset())">
+  <span class="text-accent text-sm">+</span>
+  <input type="hidden" name="task_type" value="{{ horizon_value }}">
+  <input name="title" placeholder="Быстро добавить задачу…" autocomplete="off"
+         class="flex-1 text-sm border-0 focus:outline-none bg-transparent py-1">
+</form>
+{% endif %}
 {% for task in tasks %}
   {% include "tasks/_task_row.html" %}
 {% empty %}

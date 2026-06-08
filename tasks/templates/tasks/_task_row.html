@@ -7,6 +7,7 @@
     <div class="text-sm leading-snug {% if task.done %}line-through text-ink-faint{% endif %}">{{ task.title }}</div>
     <div class="flex gap-1.5 mt-1.5 flex-wrap items-center">
       {% if task.is_project %}<span class="chip bg-accent-soft text-accent-fg">проект</span>{% endif %}
+      {% if task.is_hidden %}<span class="chip bg-surface-alt text-ink-faint">скрыта</span>{% endif %}
       {% if task.goal %}<span class="chip bg-teal-soft text-teal-fg">{{ task.goal.title }}</span>{% endif %}
       {% if task.context %}<span class="chip bg-surface-alt text-ink-muted">@{{ task.context.title }}</span>{% endif %}
       {% if task.due_date %}<span class="chip text-ink-faint">⏱ {{ task.due_date|date:"d.m H:i" }}</span>{% endif %}

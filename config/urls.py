@@ -12,6 +12,9 @@ urlpatterns = [
     path("search/", views.search, name="search"),
     path("archive/", views.archive_list, name="archive_list"),
     path("archive/clear/", views.archive_clear, name="archive_clear"),
+    path("completed/", views.completed_list, name="completed_list"),
+    path("settings/toggle/<str:key>/", views.toggle_setting, name="toggle_setting"),
+    path("settings/sort/", views.set_sort, name="set_sort"),
 
     # tasks
     path("task/new/", views.task_new, name="task_new"),
@@ -21,6 +24,7 @@ urlpatterns = [
     path("task/<str:task_id>/delete/", views.task_delete, name="task_delete"),
     path("task/<str:task_id>/toggle/", views.toggle_done, name="toggle_done"),
     path("task/<str:task_id>/move/<str:horizon>/", views.task_move, name="task_move"),
+    path("task/<str:task_id>/copy/", views.task_copy, name="task_copy"),
     path("task/<str:task_id>/archive/", views.task_archive, name="task_archive"),
     path("task/<str:task_id>/unarchive/", views.task_unarchive, name="task_unarchive"),
     path("task/<str:task_id>/checklist/add/", views.check_item_add, name="check_item_add"),

@@ -6,6 +6,8 @@
 <div class="flex items-center gap-2.5 mb-3.5">
   <span class="text-xs text-ink-faint flex-1">{% if task %}Редактирование{% else %}Новая задача{% endif %}</span>
   {% if task %}
+  <button hx-post="{% url 'task_copy' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
+          @click="editorOpen=false" class="text-ink-faint hover:text-ink text-sm">дублировать</button>
   <button hx-post="{% url 'task_archive' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
           @click="editorOpen=false" class="text-ink-faint hover:text-ink text-sm">в архив</button>
   <button hx-post="{% url 'task_delete' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"

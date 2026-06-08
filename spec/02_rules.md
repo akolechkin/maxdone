@@ -91,3 +91,41 @@ buildArchivedGoalsQuery, deleteArchivedTasks / deleteArchivedGoals.)
 - **Восстановление**: `archived = False`.
 - **Экран архива** показывает архивные задачи и цели владельца.
 - **Очистка архива** безвозвратно удаляет ВСЕ архивные объекты владельца.
+
+## BR-10: Список выполненных
+(Из APK: getCompletedMenu / buildCompletedTasksQuery.)
+Завершённые задачи (`done == True`, `archived == False`) исключены из доски
+(BR-1) и показываются на отдельном экране `/completed/`, отсортированы по
+`completion_date` по убыванию. Оттуда задачу можно снять с выполнения (BR-3).
+
+## BR-11: Пользовательские настройки отображения (сессия)
+Настройки отображения хранятся в сессии пользователя (в оригинале —
+SharedPreferences, не доменная сущность greenDAO; в spec/01 не входят):
+- **show_hidden** (BR-12) — показывать ли скрытые задачи в списках.
+- **sort** (BR-13) — порядок сортировки списка задач.
+- **quick_add** (BR-14) — показывать ли строку быстрого добавления.
+- **task preferences** (BR-15) — последний выбор goal/context/is_project.
+
+## BR-12: Тоггл «показать скрытые»
+(Из APK: setShowHidden / shouldShowHidden.)
+Когда `show_hidden` включён, фильтр видимости (BR-1) НЕ прячет задачи с
+`state == HIDDEN` (будущая `hide_until_date`); они показываются с пометкой.
+Архивные и выполненные остаются исключёнными независимо от этого тоггла.
+
+## BR-13: Сортировка списка
+(Из APK: sortTaskList + SORT_ORDER_*.)
+Порядок списка задач выбирается из набора (по умолчанию — priority):
+- `priority` — по `priority`, затем `-created` (как Meta.ordering).
+- `due` — по `due_date` (по возрастанию, пустые в конце) [ENDING/EXPIRING_SOON_FIRST].
+- `recent` — по `-created` [MOST_RECENT_FIRST].
+- `updated` — по `-modified` [RECENTLY_UPDATED_FIRST].
+
+## BR-14: Быстрое добавление
+(Из APK: getShowQuickAddSetting / setShowQuickAdd.)
+Инлайн-строка быстрого добавления вверху списка; создаёт задачу в текущем
+горизонте по одному заголовку. Видимость строки — настройка `quick_add`.
+
+## BR-15: Task preferences (память выбора)
+(Из APK: getTaskPreferenceGoal/Context/Project.)
+При создании задачи последний выбор `goal` / `context` / `is_project`
+запоминается и подставляется в форму следующей НОВОЙ задачи.

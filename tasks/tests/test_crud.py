@@ -284,6 +284,145 @@ class Archive(TestCase):
         g.refresh_from_db(); self.assertFalse(g.archived)
 
 
+class TaskCopy(TestCase):
+    """Feature catalog #7: duplicate task with checklist."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_copy_duplicates_with_checklist(self):
+        t = Task.objects.create(owner=self.user, title="Orig", task_type=Task.Horizon.WEEK)
+        t.checklist.create(title="step1", sort_order=0)
+        t.checklist.create(title="step2", sort_order=1, done=True)
+        self.client.post(reverse("task_copy", args=[t.id]))
+        copy = Task.objects.exclude(id=t.id).get(owner=self.user)
+        self.assertTrue(copy.title.startswith("Orig"))
+        self.assertEqual(copy.task_type, Task.Horizon.WEEK)
+        self.assertEqual(copy.checklist.count(), 2)
+        self.assertNotEqual(copy.id, t.id)
+
+    def test_copy_is_not_done(self):
+        t = Task.objects.create(owner=self.user, title="D", task_type=Task.Horizon.TODAY,
+                                done=True, completion_date=timezone.now())
+        self.client.post(reverse("task_copy", args=[t.id]))
+        copy = Task.objects.exclude(id=t.id).get(owner=self.user)
+        self.assertFalse(copy.done)
+        self.assertIsNone(copy.completion_date)
+
+
+class Sorting(TestCase):
+    """BR-13: task list sort orders."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_sort_by_due_orders_ascending(self):
+        now = timezone.now()
+        Task.objects.create(owner=self.user, title="Late", task_type=Task.Horizon.TODAY,
+                            due_date=now + timedelta(days=9))
+        Task.objects.create(owner=self.user, title="Soon", task_type=Task.Horizon.TODAY,
+                            due_date=now + timedelta(days=1))
+        Task.objects.create(owner=self.user, title="Mid", task_type=Task.Horizon.TODAY,
+                            due_date=now + timedelta(days=5))
+        self.client.post(reverse("set_sort"), {"sort": "due"})
+        html = self.client.get(reverse("board") + "?h=TODAY").content.decode()
+        self.assertLess(html.index("Soon"), html.index("Mid"))
+        self.assertLess(html.index("Mid"), html.index("Late"))
+
+    def test_invalid_sort_ignored(self):
+        self.client.post(reverse("set_sort"), {"sort": "bogus"})
+        self.assertNotEqual(self.client.session.get("sort"), "bogus")
+
+
+class QuickAdd(TestCase):
+    """BR-14: quick-add row toggle."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_quick_add_hidden_by_default(self):
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertNotContains(r, "Быстро добавить")
+
+    def test_toggle_shows_quick_add_row(self):
+        self.client.post(reverse("toggle_setting", args=["quick_add"]))
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertContains(r, "Быстро добавить")
+
+    def test_quick_add_creates_task_in_current_horizon(self):
+        self.client.post(reverse("task_create") + "?h=WEEK",
+                         {"title": "Quick", "task_type": Task.Horizon.WEEK})
+        self.assertEqual(Task.objects.get(title="Quick").task_type, Task.Horizon.WEEK)
+
+
+class TaskPreferences(TestCase):
+    """BR-15: remember last goal/context/is_project for the next new task."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_new_task_prefills_last_goal_and_context(self):
+        g = Goal.objects.create(owner=self.user, title="G", goal_type="PRIVATE", status=Goal.Status.ACTIVE)
+        c = Context.objects.create(owner=self.user, title="ctx")
+        self.client.post(reverse("task_create"),
+                         {"title": "x", "task_type": Task.Horizon.TODAY, "goal": g.id, "context": c.id})
+        r = self.client.get(reverse("task_new"))
+        self.assertContains(r, f'{g.id}" selected')
+        self.assertContains(r, f'{c.id}" selected')
+
+    def test_new_task_prefills_is_project(self):
+        self.client.post(reverse("task_create"),
+                         {"title": "p", "task_type": Task.Horizon.TODAY, "is_project": "on"})
+        r = self.client.get(reverse("task_new"))
+        self.assertContains(r, "checked")
+
+
+class Completed(TestCase):
+    """BR-10: completed tasks screen."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_completed_screen_lists_done_only(self):
+        Task.objects.create(owner=self.user, title="WasDone", task_type=Task.Horizon.TODAY,
+                            done=True, completion_date=timezone.now())
+        Task.objects.create(owner=self.user, title="StillActive", task_type=Task.Horizon.TODAY)
+        r = self.client.get(reverse("completed_list"))
+        self.assertContains(r, "WasDone")
+        self.assertNotContains(r, "StillActive")
+
+
+class ShowHidden(TestCase):
+    """BR-12: show-hidden toggle."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+        self.hidden = Task.objects.create(
+            owner=self.user, title="HiddenOne", task_type=Task.Horizon.TODAY,
+            state=Task.State.HIDDEN, hide_until_date=timezone.now() + timedelta(days=3))
+
+    def test_hidden_excluded_by_default(self):
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertNotContains(r, "HiddenOne")
+
+    def test_toggle_reveals_hidden(self):
+        self.client.post(reverse("toggle_setting", args=["show_hidden"]))
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertContains(r, "HiddenOne")
+
+    def test_toggle_off_again_hides(self):
+        self.client.post(reverse("toggle_setting", args=["show_hidden"]))
+        self.client.post(reverse("toggle_setting", args=["show_hidden"]))
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertNotContains(r, "HiddenOne")
+
+
 class Search(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("u", password="p")

@@ -127,6 +127,25 @@ def _set_type_recursive(task: Task, target: int) -> None:
         _set_type_recursive(child, target)
 
 
+def copy_task(task: Task) -> Task:
+    """Feature catalog #7 (buildTaskCopy): duplicate a task with its checklist.
+
+    The copy is fresh (not done), gets a new priority, and keeps goal/context/
+    parent/dates/recurrence. Subtasks are NOT copied (only the checklist).
+    """
+    copy = Task.objects.create(
+        owner=task.owner, title=f"{task.title} (копия)", note=task.note,
+        task_type=task.task_type, state=task.state,
+        priority=next_priority(task.owner), is_project=task.is_project,
+        goal=task.goal, context=task.context, parent=task.parent,
+        start_date=task.start_date, due_date=task.due_date,
+        hide_until_date=task.hide_until_date, recur_rule=task.recur_rule,
+    )
+    for item in task.checklist.all():
+        copy.checklist.create(title=item.title, done=item.done, sort_order=item.sort_order)
+    return copy
+
+
 def set_archived(task: Task, archived: bool) -> Task:
     """BR-9: archive/restore a task and its whole subtree."""
     task.archived = archived

@@ -1,0 +1,14 @@
+<div id="completed-list">
+  {% for task in tasks %}
+  <div id="task-{{ task.id }}" class="flex gap-2.5 py-2.5 border-b border-line">
+    <button hx-post="{% url 'toggle_done' task.id %}" hx-target="#task-{{ task.id }}" hx-swap="outerHTML"
+            class="w-[18px] h-[18px] rounded-[5px] border-[1.5px] mt-0.5 shrink-0 bg-teal border-teal"></button>
+    <div class="flex-1 min-w-0">
+      <div class="text-sm line-through text-ink-faint">{{ task.title }}</div>
+      {% if task.completion_date %}<div class="text-[11px] text-ink-faint">{{ task.completion_date|date:"d.m.Y H:i" }}</div>{% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="text-sm text-ink-faint py-8 text-center">Пока ничего не выполнено</div>
+  {% endfor %}
+</div>

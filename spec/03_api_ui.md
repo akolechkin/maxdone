@@ -19,6 +19,10 @@
 | `/goals/<id>/unarchive/`      | goal_unarchive    | POST: восстановить цель              |
 | `/archive/`                   | archive_list      | экран архива (задачи + цели)         |
 | `/archive/clear/`             | archive_clear     | POST: удалить весь архив навсегда    |
+| `/completed/`                 | completed_list    | экран выполненных (BR-10)            |
+| `/task/<id>/copy/`            | task_copy         | POST: дублировать задачу + чек-лист  |
+| `/settings/toggle/<key>/`     | toggle_setting    | POST: переключить show_hidden/quick_add (BR-11) |
+| `/settings/sort/`             | set_sort          | POST: выбрать порядок сортировки (BR-13) |
 | `/login/` `/logout/`          | auth              | вход/выход                           |
 
 ## HTMX-поведение

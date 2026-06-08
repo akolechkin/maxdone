@@ -100,6 +100,10 @@ class Task(TimeStamped):
         from . import services
         return services.visible_qs(self.children.all())
 
+    @property
+    def is_hidden(self):
+        return self.state == Task.State.HIDDEN
+
 
 class CheckListItem(models.Model):
     """Sub-item of a task. In the original these were JSON-serialized on Task."""
