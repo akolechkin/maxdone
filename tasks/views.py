@@ -16,13 +16,16 @@ HORIZON_LABELS = {
 
 def _visible_tasks(user):
     """BR-1: active, non-archived; hidden ones surface once hide_until_date passes."""
-    now = timezone.now()
-    qs = Task.objects.filter(owner=user, archived=False, done=False)
-    return qs.exclude(state=Task.State.HIDDEN, hide_until_date__gt=now)
+    return services.visible_qs(Task.objects.filter(owner=user))
+
+
+def _root_tasks(user):
+    """BR-7: the board lists/counts only top-level tasks; subtasks live under parents."""
+    return _visible_tasks(user).filter(parent__isnull=True)
 
 
 def _horizon_counts(user):
-    tasks = _visible_tasks(user)
+    tasks = _root_tasks(user)
     return {key: tasks.filter(task_type=val).count() for key, (_, val) in HORIZON_LABELS.items()}
 
 
@@ -32,7 +35,7 @@ HORIZON_NAV = [(k, lbl) for k, (lbl, _) in HORIZON_LABELS.items()]
 def _board_context(request, horizon="TODAY"):
     label, value = HORIZON_LABELS.get(horizon, HORIZON_LABELS["TODAY"])
     return {
-        "tasks": _visible_tasks(request.user).filter(task_type=value),
+        "tasks": _root_tasks(request.user).filter(task_type=value),
         "horizon": horizon,
         "horizon_label": label,
         "horizon_nav": HORIZON_NAV,
@@ -40,14 +43,6 @@ def _board_context(request, horizon="TODAY"):
         "goals": Goal.objects.filter(owner=request.user, archived=False),
         "contexts": Context.objects.filter(owner=request.user, archived=False),
     }
-
-
-def _apply_hidden_state(task):
-    """BR-1: a future hide_until_date implies HIDDEN; otherwise ACTIVE."""
-    if task.hide_until_date and task.hide_until_date > timezone.now():
-        task.state = Task.State.HIDDEN
-    else:
-        task.state = Task.State.ACTIVE
 
 
 @login_required
@@ -80,7 +75,7 @@ def task_create(request):
         task = form.save(commit=False)
         task.owner = request.user
         task.priority = services.next_priority(request.user)
-        _apply_hidden_state(task)
+        services.apply_hidden_state(task)
         task.save()
         ctx = _board_context(request, request.GET.get("h", "TODAY"))
         resp = render(request, "tasks/_task_list.html", ctx)
@@ -96,7 +91,7 @@ def task_update(request, task_id):
     form = TaskForm(request.POST, instance=task, user=request.user)
     if form.is_valid():
         task = form.save(commit=False)
-        _apply_hidden_state(task)
+        services.apply_hidden_state(task)
         task.save()
         ctx = _board_context(request, request.GET.get("h", "TODAY"))
         resp = render(request, "tasks/_task_list.html", ctx)
@@ -149,6 +144,20 @@ def check_item_delete(request, item_id):
     task = item.task
     item.delete()
     return render(request, "tasks/_checklist.html", {"task": task})
+
+
+@login_required
+@require_http_methods(["POST"])
+def subtask_add(request, task_id):
+    """BR-7: add a child task; it inherits the parent's horizon and owner."""
+    parent = get_object_or_404(Task, id=task_id, owner=request.user)
+    title = (request.POST.get("title") or "").strip()
+    if title:
+        Task.objects.create(
+            owner=request.user, title=title, parent=parent,
+            task_type=parent.task_type, priority=services.next_priority(request.user),
+        )
+    return render(request, "tasks/_subtasks.html", {"task": parent})
 
 
 @login_required

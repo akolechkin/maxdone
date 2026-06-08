@@ -11,6 +11,8 @@
 | `/task/<id>/`                 | task_detail       | фрагмент редактора (HTMX)            |
 | `/task/<id>/toggle/`          | toggle_done       | POST: переключить done (фрагмент)    |
 | `/check/<id>/toggle/`         | toggle_check_item | POST: переключить пункт чек-листа    |
+| `/task/<id>/subtask/add/`     | subtask_add       | POST: добавить подзадачу (BR-7)      |
+| `/task/<id>/move/<horizon>/`  | task_move         | POST: горизонт + поддерево (BR-7)    |
 | `/login/` `/logout/`          | auth              | вход/выход                           |
 
 ## HTMX-поведение

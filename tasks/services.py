@@ -9,6 +9,13 @@ from django.utils import timezone
 from .models import Task
 
 
+def visible_qs(qs):
+    """BR-1: single source of the visibility filter (active, non-archived, not future-hidden)."""
+    now = timezone.now()
+    return qs.filter(archived=False, done=False).exclude(
+        state=Task.State.HIDDEN, hide_until_date__gt=now)
+
+
 def set_done(task: Task, done: bool) -> Task:
     """BR-3: завершение задачи проставляет/снимает completion_date."""
     task.done = done
@@ -107,8 +114,33 @@ def validate_rrule(rule: str) -> bool:
 
 
 def move_task(task: Task, horizon_key: str) -> Task:
-    """Feature catalog #1: direct move between horizons (moveTaskToToday/Week/Later)."""
+    """Feature catalog #1 + BR-7: move between horizons, carrying the whole subtree."""
     if horizon_key in HORIZON_BY_KEY:
-        task.task_type = HORIZON_BY_KEY[horizon_key]
-        task.save(update_fields=["task_type", "modified"])
+        _set_type_recursive(task, HORIZON_BY_KEY[horizon_key])
     return task
+
+
+def _set_type_recursive(task: Task, target: int) -> None:
+    task.task_type = target
+    task.save(update_fields=["task_type", "modified"])
+    for child in task.children.all():
+        _set_type_recursive(child, target)
+
+
+def apply_hidden_state(task: Task) -> None:
+    """BR-1 + BR-7: a future hide_until_date implies HIDDEN, else ACTIVE.
+
+    The caller saves `task` itself (it is mid-form-save); this mirrors the parent's
+    hide state + date onto every descendant (CAN_HIDE_DESCENDANTS).
+    """
+    hidden = bool(task.hide_until_date and task.hide_until_date > timezone.now())
+    task.state = Task.State.HIDDEN if hidden else Task.State.ACTIVE
+    _propagate_hidden(task, task.state, task.hide_until_date if hidden else None)
+
+
+def _propagate_hidden(task: Task, state: int, hide_until) -> None:
+    for child in task.children.all():
+        child.state = state
+        child.hide_until_date = hide_until
+        child.save(update_fields=["state", "hide_until_date", "modified"])
+        _propagate_hidden(child, state, hide_until)

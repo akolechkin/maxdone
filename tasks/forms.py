@@ -12,7 +12,7 @@ class TaskForm(forms.ModelForm):
         # primary date (date picker), hide_until_date is a separate "hide until" control.
         fields = [
             "title", "note", "task_type", "goal", "context",
-            "due_date", "hide_until_date", "recur_rule",
+            "due_date", "hide_until_date", "recur_rule", "is_project",
         ]
         widgets = {
             "title": forms.TextInput(attrs={
@@ -40,6 +40,7 @@ class TaskForm(forms.ModelForm):
                 "class": "border border-line rounded-md px-2 py-1.5 text-sm",
                 "placeholder": "FREQ=WEEKLY",
             }),
+            "is_project": forms.CheckboxInput(attrs={"class": "rounded border-line"}),
         }
 
     def __init__(self, *args, user=None, **kwargs):

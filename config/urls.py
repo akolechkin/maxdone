@@ -20,6 +20,7 @@ urlpatterns = [
     path("task/<str:task_id>/toggle/", views.toggle_done, name="toggle_done"),
     path("task/<str:task_id>/move/<str:horizon>/", views.task_move, name="task_move"),
     path("task/<str:task_id>/checklist/add/", views.check_item_add, name="check_item_add"),
+    path("task/<str:task_id>/subtask/add/", views.subtask_add, name="subtask_add"),
     path("check/<int:item_id>/toggle/", views.toggle_check_item, name="toggle_check_item"),
     path("check/<int:item_id>/delete/", views.check_item_delete, name="check_item_delete"),
 

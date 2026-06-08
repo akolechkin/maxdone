@@ -61,3 +61,19 @@ class PriorityRule(TestCase):
         t2 = services.create_task(self.user, "b")
         self.assertEqual(t1.priority, 1.0)
         self.assertEqual(t2.priority, 2.0)
+
+
+class SubtreeMove(TestCase):
+    """BR-7: moving a task moves its whole subtree (recursively)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+
+    def test_move_propagates_to_descendants(self):
+        root = Task.objects.create(owner=self.user, title="root", task_type=Task.Horizon.TODAY)
+        child = Task.objects.create(owner=self.user, title="child", parent=root, task_type=Task.Horizon.TODAY)
+        grand = Task.objects.create(owner=self.user, title="grand", parent=child, task_type=Task.Horizon.TODAY)
+        services.move_task(root, "LATER")
+        for t in (root, child, grand):
+            t.refresh_from_db()
+            self.assertEqual(t.task_type, Task.Horizon.LATER, t.title)

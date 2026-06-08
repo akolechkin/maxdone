@@ -122,12 +122,19 @@
       </div>
     </template>
   </div>
+  <label class="flex items-center gap-2 text-xs text-ink-muted">
+    {{ form.is_project }} <span>Это проект (контейнер для подзадач)</span>
+  </label>
   <div>{{ form.note }}</div>
 
   <button type="submit" class="btn-accent w-full">{% if task %}Сохранить{% else %}Создать{% endif %}</button>
 </form>
 
 {% if task %}
+<div class="mt-4 border-t border-line pt-3">
+  <div class="text-[11px] text-ink-muted mb-1.5">Подзадачи</div>
+  {% include "tasks/_subtasks.html" %}
+</div>
 <div class="mt-4 border-t border-line pt-3">
   <div class="text-[11px] text-ink-muted mb-1.5">Чек-лист</div>
   {% include "tasks/_checklist.html" %}

@@ -89,6 +89,11 @@ class Task(TimeStamped):
     def __str__(self):
         return self.title
 
+    def visible_children(self):
+        """BR-1/BR-7: child subtasks that pass the visibility filter."""
+        from . import services
+        return services.visible_qs(self.children.all())
+
 
 class CheckListItem(models.Model):
     """Sub-item of a task. In the original these were JSON-serialized on Task."""

@@ -111,6 +111,86 @@ class Recurrence(TestCase):
             self.assertFalse(validate_rrule(bad), bad)
 
 
+class Subtasks(TestCase):
+    """BR-7: subtask hierarchy + subtree hide/list behaviour (view layer)."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_add_subtask_inherits_parent(self):
+        parent = Task.objects.create(owner=self.user, title="P", task_type=Task.Horizon.LATER)
+        r = self.client.post(reverse("subtask_add", args=[parent.id]), {"title": "child"})
+        self.assertEqual(r.status_code, 200)
+        child = Task.objects.get(title="child")
+        self.assertEqual(child.parent_id, parent.id)
+        self.assertEqual(child.owner, self.user)
+        self.assertEqual(child.task_type, Task.Horizon.LATER)
+        self.assertGreater(child.priority, 0.0)
+
+    def test_board_lists_root_only(self):
+        parent = Task.objects.create(owner=self.user, title="ParentRoot", task_type=Task.Horizon.TODAY)
+        Task.objects.create(owner=self.user, title="ChildHidden", parent=parent, task_type=Task.Horizon.TODAY)
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertContains(r, "ParentRoot")
+        self.assertNotContains(r, "ChildHidden")
+
+    def test_hide_parent_hides_subtree(self):  # CAN_HIDE_DESCENDANTS
+        parent = Task.objects.create(owner=self.user, title="HP", task_type=Task.Horizon.TODAY)
+        child = Task.objects.create(owner=self.user, title="HC", parent=parent, task_type=Task.Horizon.TODAY)
+        future = (timezone.now() + timedelta(days=3)).strftime("%Y-%m-%d")
+        self.client.post(reverse("task_update", args=[parent.id]),
+                         {"title": "HP", "task_type": Task.Horizon.TODAY, "hide_until_date": future})
+        child.refresh_from_db()
+        self.assertEqual(child.state, Task.State.HIDDEN)
+        self.assertIsNotNone(child.hide_until_date)
+
+    def test_unhide_parent_unhides_subtree(self):
+        parent = Task.objects.create(owner=self.user, title="UP", task_type=Task.Horizon.TODAY,
+                                     state=Task.State.HIDDEN, hide_until_date=timezone.now() + timedelta(days=3))
+        child = Task.objects.create(owner=self.user, title="UC", parent=parent, task_type=Task.Horizon.TODAY,
+                                    state=Task.State.HIDDEN, hide_until_date=timezone.now() + timedelta(days=3))
+        self.client.post(reverse("task_update", args=[parent.id]),
+                         {"title": "UP", "task_type": Task.Horizon.TODAY, "hide_until_date": ""})
+        child.refresh_from_db()
+        self.assertEqual(child.state, Task.State.ACTIVE)
+
+    def test_delete_parent_cascades(self):
+        parent = Task.objects.create(owner=self.user, title="DP", task_type=Task.Horizon.TODAY)
+        child = Task.objects.create(owner=self.user, title="DC", parent=parent, task_type=Task.Horizon.TODAY)
+        self.client.post(reverse("task_delete", args=[parent.id]))
+        self.assertFalse(Task.objects.filter(id=child.id).exists())
+
+
+class Projects(TestCase):
+    """BR-8: is_project flag is editable and surfaced in the UI."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_create_as_project(self):
+        self.client.post(reverse("task_create"),
+                         {"title": "Proj", "task_type": Task.Horizon.TODAY, "is_project": "on"})
+        self.assertTrue(Task.objects.get(title="Proj").is_project)
+
+    def test_default_not_project(self):
+        self.client.post(reverse("task_create"), {"title": "Plain", "task_type": Task.Horizon.TODAY})
+        self.assertFalse(Task.objects.get(title="Plain").is_project)
+
+    def test_update_clears_project_flag(self):
+        t = Task.objects.create(owner=self.user, title="P2", task_type=Task.Horizon.TODAY, is_project=True)
+        self.client.post(reverse("task_update", args=[t.id]),
+                         {"title": "P2", "task_type": Task.Horizon.TODAY})  # checkbox unchecked -> absent
+        t.refresh_from_db()
+        self.assertFalse(t.is_project)
+
+    def test_project_marked_in_list(self):
+        Task.objects.create(owner=self.user, title="ProjRow", task_type=Task.Horizon.TODAY, is_project=True)
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertContains(r, "проект")
+
+
 class GoalContextCrud(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("u", password="p")
