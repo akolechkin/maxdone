@@ -36,6 +36,16 @@
 | PRIVATE   | Личная         |
 | CORPORATE | Корпоративная  |
 
+## Enum: Goal.Status (TextChoices)
+Статус цели выбирается из фиксированного набора (в оригинале — диалог
+`CHANGE_GOAL_STATUS`, маппинг `getResIdFromGoalStatus`), НЕ свободный текст.
+| value    | label       |
+|----------|-------------|
+| ACTIVE   | В работе    |
+| PAUSED   | На паузе    |
+| ACHIEVED | Достигнута  |
+| DROPPED  | Отменена    |
+
 ## Сущность: Context (extends TimeStamped)
 - `title` — Char(120)
 
@@ -43,7 +53,7 @@
 - `title` — Char(255)
 - `description` — Text, blank
 - `goal_type` — Type, default PRIVATE
-- `status` — Char(40), blank
+- `status` — Status, default ACTIVE
 - `start_period` / `end_period` — Date, nullable
 - `shared` — Boolean, default False
 

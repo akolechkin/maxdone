@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="p-3 max-w-[800px] mx-auto">
+  <div class="bg-surface border border-line rounded-lg overflow-hidden min-h-[400px]">
+    <div class="flex items-center gap-3 border-b border-line px-4 py-3">
+      <a href="{% url 'board' %}" class="text-sm text-ink-muted hover:text-ink">← задачи</a>
+      <h3 class="text-lg font-medium m-0">Архив</h3>
+    </div>
+    <div class="p-4">{% include "tasks/_archive_list.html" %}</div>
+  </div>
+</div>
+{% endblock %}

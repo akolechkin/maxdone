@@ -10,6 +10,8 @@ urlpatterns = [
 
     path("", views.board, name="board"),
     path("search/", views.search, name="search"),
+    path("archive/", views.archive_list, name="archive_list"),
+    path("archive/clear/", views.archive_clear, name="archive_clear"),
 
     # tasks
     path("task/new/", views.task_new, name="task_new"),
@@ -19,6 +21,8 @@ urlpatterns = [
     path("task/<str:task_id>/delete/", views.task_delete, name="task_delete"),
     path("task/<str:task_id>/toggle/", views.toggle_done, name="toggle_done"),
     path("task/<str:task_id>/move/<str:horizon>/", views.task_move, name="task_move"),
+    path("task/<str:task_id>/archive/", views.task_archive, name="task_archive"),
+    path("task/<str:task_id>/unarchive/", views.task_unarchive, name="task_unarchive"),
     path("task/<str:task_id>/checklist/add/", views.check_item_add, name="check_item_add"),
     path("task/<str:task_id>/subtask/add/", views.subtask_add, name="subtask_add"),
     path("check/<int:item_id>/toggle/", views.toggle_check_item, name="toggle_check_item"),
@@ -31,6 +35,8 @@ urlpatterns = [
     path("goals/<str:goal_id>/edit/", views.goal_edit, name="goal_edit"),
     path("goals/<str:goal_id>/update/", views.goal_update, name="goal_update"),
     path("goals/<str:goal_id>/delete/", views.goal_delete, name="goal_delete"),
+    path("goals/<str:goal_id>/archive/", views.goal_archive, name="goal_archive"),
+    path("goals/<str:goal_id>/unarchive/", views.goal_unarchive, name="goal_unarchive"),
 
     # contexts
     path("contexts/", views.context_list, name="context_list"),

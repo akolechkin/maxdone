@@ -127,6 +127,15 @@ def _set_type_recursive(task: Task, target: int) -> None:
         _set_type_recursive(child, target)
 
 
+def set_archived(task: Task, archived: bool) -> Task:
+    """BR-9: archive/restore a task and its whole subtree."""
+    task.archived = archived
+    task.save(update_fields=["archived", "modified"])
+    for child in task.children.all():
+        set_archived(child, archived)
+    return task
+
+
 def apply_hidden_state(task: Task) -> None:
     """BR-1 + BR-7: a future hide_until_date implies HIDDEN, else ACTIVE.
 

@@ -80,17 +80,14 @@ class GoalForm(forms.ModelForm):
                 "rows": 3, "placeholder": "Описание…",
             }),
             "goal_type": forms.Select(attrs={"class": "border border-line rounded-md px-2 py-1.5 text-sm"}),
-            "status": forms.TextInput(attrs={
-                "class": "border border-line rounded-md px-2 py-1.5 text-sm",
-                "placeholder": "В работе",
-            }),
+            "status": forms.Select(attrs={"class": "border border-line rounded-md px-2 py-1.5 text-sm"}),
             "start_period": forms.DateInput(attrs={"type": "date", "class": "border border-line rounded-md px-2 py-1.5 text-sm"}, format="%Y-%m-%d"),
             "end_period": forms.DateInput(attrs={"type": "date", "class": "border border-line rounded-md px-2 py-1.5 text-sm"}, format="%Y-%m-%d"),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for f in ("description", "status", "start_period", "end_period"):
+        for f in ("description", "start_period", "end_period"):
             self.fields[f].required = False
         self.fields["start_period"].input_formats = ["%Y-%m-%d"]
         self.fields["end_period"].input_formats = ["%Y-%m-%d"]

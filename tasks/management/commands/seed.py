@@ -17,7 +17,7 @@ class Command(BaseCommand):
             self.stdout.write("demo user already seeded, skipping")
             return
         goal = Goal.objects.create(owner=user, title="Освоить джедайские техники",
-                                   goal_type=Goal.Type.PRIVATE, status="В работе")
+                                   goal_type=Goal.Type.PRIVATE, status=Goal.Status.ACTIVE)
         ctx = Context.objects.create(owner=user, title="5 минут")
         t = services.create_task(user, "Подготовить квартальный отчёт",
                                  task_type=Task.Horizon.TODAY, goal=goal, context=ctx)

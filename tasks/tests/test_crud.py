@@ -198,15 +198,90 @@ class GoalContextCrud(TestCase):
         self.client.login(username="u", password="p")
 
     def test_goal_create_and_delete(self):
-        self.client.post(reverse("goal_create"), {"title": "G", "goal_type": "PRIVATE"})
+        self.client.post(reverse("goal_create"),
+                         {"title": "G", "goal_type": "PRIVATE", "status": "ACTIVE"})
         g = Goal.objects.get(title="G")
         self.assertEqual(g.owner, self.user)
         self.client.post(reverse("goal_delete", args=[g.id]))
         self.assertFalse(Goal.objects.filter(id=g.id).exists())
 
+    def test_goal_status_is_a_choice(self):  # gap #5: status picked from a fixed set
+        self.client.post(reverse("goal_create"),
+                         {"title": "GS", "goal_type": "PRIVATE", "status": "PAUSED"})
+        self.assertEqual(Goal.objects.get(title="GS").status, Goal.Status.PAUSED)
+
+    def test_goal_invalid_status_rejected(self):
+        r = self.client.post(reverse("goal_create"),
+                             {"title": "GBad", "goal_type": "PRIVATE", "status": "whatever"})
+        self.assertEqual(r.status_code, 422)
+        self.assertFalse(Goal.objects.filter(title="GBad").exists())
+
+    def test_goal_status_change_via_update(self):  # CHANGE_GOAL_STATUS
+        g = Goal.objects.create(owner=self.user, title="GC", goal_type="PRIVATE", status=Goal.Status.ACTIVE)
+        self.client.post(reverse("goal_update", args=[g.id]),
+                         {"title": "GC", "goal_type": "PRIVATE", "status": "ACHIEVED"})
+        g.refresh_from_db()
+        self.assertEqual(g.status, Goal.Status.ACHIEVED)
+
     def test_context_create(self):
         self.client.post(reverse("context_create"), {"title": "дома"})
         self.assertTrue(Context.objects.filter(title="дома", owner=self.user).exists())
+
+
+class Archive(TestCase):
+    """BR-9: archive is soft-hide; archive screen + restore + clear."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_archive_task_removes_from_board(self):
+        t = Task.objects.create(owner=self.user, title="ArcMe", task_type=Task.Horizon.TODAY)
+        self.client.post(reverse("task_archive", args=[t.id]))
+        t.refresh_from_db()
+        self.assertTrue(t.archived)
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertNotContains(r, "ArcMe")
+
+    def test_archive_propagates_to_subtree(self):
+        p = Task.objects.create(owner=self.user, title="AP", task_type=Task.Horizon.TODAY)
+        c = Task.objects.create(owner=self.user, title="AC", parent=p, task_type=Task.Horizon.TODAY)
+        self.client.post(reverse("task_archive", args=[p.id]))
+        c.refresh_from_db()
+        self.assertTrue(c.archived)
+
+    def test_unarchive_restores(self):
+        t = Task.objects.create(owner=self.user, title="Un", task_type=Task.Horizon.TODAY, archived=True)
+        self.client.post(reverse("task_unarchive", args=[t.id]))
+        t.refresh_from_db()
+        self.assertFalse(t.archived)
+
+    def test_archive_screen_lists_archived(self):
+        Task.objects.create(owner=self.user, title="ArcShown", task_type=Task.Horizon.TODAY, archived=True)
+        Goal.objects.create(owner=self.user, title="GoalArc", goal_type="PRIVATE",
+                            status=Goal.Status.ACTIVE, archived=True)
+        r = self.client.get(reverse("archive_list"))
+        self.assertContains(r, "ArcShown")
+        self.assertContains(r, "GoalArc")
+
+    def test_archive_clear_deletes_permanently(self):
+        Task.objects.create(owner=self.user, title="Doomed", task_type=Task.Horizon.TODAY, archived=True)
+        Goal.objects.create(owner=self.user, title="DoomedG", goal_type="PRIVATE",
+                            status=Goal.Status.ACTIVE, archived=True)
+        active = Task.objects.create(owner=self.user, title="Kept", task_type=Task.Horizon.TODAY)
+        self.client.post(reverse("archive_clear"))
+        self.assertFalse(Task.objects.filter(title="Doomed").exists())
+        self.assertFalse(Goal.objects.filter(title="DoomedG").exists())
+        self.assertTrue(Task.objects.filter(id=active.id).exists())
+
+    def test_goal_archive_and_restore(self):
+        g = Goal.objects.create(owner=self.user, title="GA", goal_type="PRIVATE", status=Goal.Status.ACTIVE)
+        self.client.post(reverse("goal_archive", args=[g.id]))
+        g.refresh_from_db(); self.assertTrue(g.archived)
+        r = self.client.get(reverse("goal_list"))
+        self.assertNotContains(r, "GA")
+        self.client.post(reverse("goal_unarchive", args=[g.id]))
+        g.refresh_from_db(); self.assertFalse(g.archived)
 
 
 class Search(TestCase):

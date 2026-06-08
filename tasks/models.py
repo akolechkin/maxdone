@@ -37,10 +37,16 @@ class Goal(TimeStamped):
         PRIVATE = "PRIVATE", "Личная"
         CORPORATE = "CORPORATE", "Корпоративная"
 
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "В работе"
+        PAUSED = "PAUSED", "На паузе"
+        ACHIEVED = "ACHIEVED", "Достигнута"
+        DROPPED = "DROPPED", "Отменена"
+
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     goal_type = models.CharField(max_length=12, choices=Type.choices, default=Type.PRIVATE)
-    status = models.CharField(max_length=40, blank=True)
+    status = models.CharField(max_length=40, choices=Status.choices, default=Status.ACTIVE)
     start_period = models.DateField(null=True, blank=True)
     end_period = models.DateField(null=True, blank=True)
     shared = models.BooleanField(default=False)

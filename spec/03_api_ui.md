@@ -13,6 +13,12 @@
 | `/check/<id>/toggle/`         | toggle_check_item | POST: переключить пункт чек-листа    |
 | `/task/<id>/subtask/add/`     | subtask_add       | POST: добавить подзадачу (BR-7)      |
 | `/task/<id>/move/<horizon>/`  | task_move         | POST: горизонт + поддерево (BR-7)    |
+| `/task/<id>/archive/`         | task_archive      | POST: в архив (+поддерево, BR-9)     |
+| `/task/<id>/unarchive/`       | task_unarchive    | POST: восстановить из архива         |
+| `/goals/<id>/archive/`        | goal_archive      | POST: цель в архив (BR-9)            |
+| `/goals/<id>/unarchive/`      | goal_unarchive    | POST: восстановить цель              |
+| `/archive/`                   | archive_list      | экран архива (задачи + цели)         |
+| `/archive/clear/`             | archive_clear     | POST: удалить весь архив навсегда    |
 | `/login/` `/logout/`          | auth              | вход/выход                           |
 
 ## HTMX-поведение

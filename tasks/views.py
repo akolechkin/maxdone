@@ -169,6 +169,67 @@ def task_move(request, task_id, horizon):
     return render(request, "tasks/_task_list.html", ctx)
 
 
+# ---- Archive (BR-9) ----
+
+@login_required
+@require_http_methods(["POST"])
+def task_archive(request, task_id):
+    task = get_object_or_404(Task, id=task_id, owner=request.user)
+    services.set_archived(task, True)
+    ctx = _board_context(request, request.GET.get("h", "TODAY"))
+    return render(request, "tasks/_task_list.html", ctx)
+
+
+@login_required
+@require_http_methods(["POST"])
+def task_unarchive(request, task_id):
+    task = get_object_or_404(Task, id=task_id, owner=request.user)
+    services.set_archived(task, False)
+    return render(request, "tasks/_archive_list.html", _archive_context(request.user))
+
+
+@login_required
+@require_http_methods(["POST"])
+def goal_archive(request, goal_id):
+    goal = get_object_or_404(Goal, id=goal_id, owner=request.user)
+    goal.archived = True
+    goal.save(update_fields=["archived", "modified"])
+    return render(request, "tasks/_goal_list.html",
+                  {"goals": Goal.objects.filter(owner=request.user, archived=False)})
+
+
+@login_required
+@require_http_methods(["POST"])
+def goal_unarchive(request, goal_id):
+    goal = get_object_or_404(Goal, id=goal_id, owner=request.user)
+    goal.archived = False
+    goal.save(update_fields=["archived", "modified"])
+    return render(request, "tasks/_archive_list.html", _archive_context(request.user))
+
+
+def _archive_context(user):
+    return {
+        "tasks": Task.objects.filter(owner=user, archived=True),
+        "goals": Goal.objects.filter(owner=user, archived=True),
+    }
+
+
+@login_required
+def archive_list(request):
+    ctx = _archive_context(request.user)
+    if request.headers.get("HX-Request"):
+        return render(request, "tasks/_archive_list.html", ctx)
+    return render(request, "tasks/archive.html", ctx)
+
+
+@login_required
+@require_http_methods(["POST"])
+def archive_clear(request):
+    Task.objects.filter(owner=request.user, archived=True).delete()
+    Goal.objects.filter(owner=request.user, archived=True).delete()
+    return render(request, "tasks/_archive_list.html", _archive_context(request.user))
+
+
 @login_required
 def search(request):
     q = (request.GET.get("q") or "").strip()
