@@ -1,0 +1,5 @@
+{# Ответ task_create: редактор новой задачи в #editor-body + OOB-обновление списка. #}
+{% include "tasks/_task_editor.html" %}
+<div id="task-list" hx-swap-oob="true" class="p-4 flex-1">
+  {% include "tasks/_task_list.html" %}
+</div>

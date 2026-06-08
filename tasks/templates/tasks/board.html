@@ -10,11 +10,11 @@
         <span class="text-base font-medium">maxdone</span>
       </div>
 
-      <a href="{% url 'task_detail' tasks.first.id %}" @click.prevent="editorOpen=true"
-         hx-get="{% if tasks.first %}{% url 'task_detail' tasks.first.id %}{% endif %}"
+      <button type="button" @click="editorOpen=true"
+         hx-post="{% url 'task_create' %}" hx-vals='{"h": "{{ horizon }}"}'
          hx-target="#editor-body" class="btn-accent w-full mb-3.5">
         <span>+ Новая задача</span>
-      </a>
+      </button>
 
       <nav class="space-y-0.5">
         {% for key, label in horizon_labels.items %}{% endfor %}

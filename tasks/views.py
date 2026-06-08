@@ -47,6 +47,28 @@ def board(request):
 
 
 @login_required
+@require_http_methods(["POST"])
+def task_create(request):
+    """spec/03_api_ui.md: 'Новая задача' создаёт задачу в горизонте `h`
+    (по умолчанию INBOX), а не открывает существующую."""
+    from .services import create_task
+    horizon = request.POST.get("h", "INBOX")
+    label, value = HORIZON_LABELS.get(horizon, HORIZON_LABELS["INBOX"])
+    task = create_task(request.user, title="Новая задача", task_type=value)
+    ctx = {
+        "task": task,
+        "tasks": _visible_tasks(request.user).filter(task_type=value),
+        "horizon": horizon,
+        "horizon_label": label,
+        "counts": _horizon_counts(request.user),
+        "goals": Goal.objects.filter(owner=request.user, archived=False),
+        "contexts": Context.objects.filter(owner=request.user, archived=False),
+        "horizons": Task.Horizon.choices,
+    }
+    return render(request, "tasks/_task_created.html", ctx)
+
+
+@login_required
 def task_detail(request, task_id):
     task = get_object_or_404(Task, id=task_id, owner=request.user)
     ctx = {
