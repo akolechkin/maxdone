@@ -117,3 +117,60 @@ class CheckListItem(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class GoalTemplate(TimeStamped):
+    """Reusable goal template (content system). owner = template author."""
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    goal_type = models.CharField(max_length=12, choices=Goal.Type.choices, default=Goal.Type.PRIVATE)
+    published = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.title
+
+
+class MilestoneTemplate(models.Model):
+    template = models.ForeignKey(GoalTemplate, on_delete=models.CASCADE, related_name="milestones")
+    title = models.CharField(max_length=255)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order"]
+
+    def __str__(self):
+        return self.title
+
+
+class TaskTemplate(models.Model):
+    template = models.ForeignKey(GoalTemplate, on_delete=models.CASCADE, related_name="task_templates")
+    milestone = models.ForeignKey(MilestoneTemplate, null=True, blank=True,
+                                  on_delete=models.CASCADE, related_name="task_templates")
+    title = models.CharField(max_length=500)
+    offset_days = models.IntegerField(default=0)  # relative due date from start
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order"]
+
+    def __str__(self):
+        return self.title
+
+
+class KeyResult(models.Model):
+    """Planned key result on a milestone template (structure, not runtime progress)."""
+    class Kind(models.TextChoices):
+        SIMPLE = "SIMPLE", "Простой"
+        SUM_RESULT = "SUM_RESULT", "Сумма"
+        LAST_RESULT = "LAST_RESULT", "Последнее"
+
+    milestone = models.ForeignKey(MilestoneTemplate, on_delete=models.CASCADE, related_name="key_results")
+    title = models.CharField(max_length=255)
+    kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.SIMPLE)
+    planned = models.FloatField(default=0.0)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return self.title

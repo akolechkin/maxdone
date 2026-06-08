@@ -4,7 +4,8 @@ from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.urls import reverse
-from tasks.models import Task, Goal, Context
+from tasks.models import (Task, Goal, Context, GoalTemplate, MilestoneTemplate,
+                          TaskTemplate, KeyResult)
 
 
 class TaskCrud(TestCase):
@@ -381,6 +382,65 @@ class TaskPreferences(TestCase):
         self.assertContains(r, "checked")
 
 
+class GoalPause(TestCase):
+    """BR-16: a paused goal hides its tasks from the board."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+        self.goal = Goal.objects.create(owner=self.user, title="G", goal_type="PRIVATE",
+                                        status=Goal.Status.ACTIVE)
+        Task.objects.create(owner=self.user, title="GoalTask", task_type=Task.Horizon.TODAY, goal=self.goal)
+
+    def test_active_goal_tasks_visible(self):
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertContains(r, "GoalTask")
+
+    def test_paused_goal_hides_tasks(self):
+        self.client.post(reverse("goal_update", args=[self.goal.id]),
+                         {"title": "G", "goal_type": "PRIVATE", "status": "PAUSED"})
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertNotContains(r, "GoalTask")
+
+    def test_show_hidden_reveals_paused_goal_tasks(self):
+        self.goal.status = Goal.Status.PAUSED
+        self.goal.save()
+        self.client.post(reverse("toggle_setting", args=["show_hidden"]))
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertContains(r, "GoalTask")
+
+    def test_unpause_restores_tasks(self):
+        self.goal.status = Goal.Status.PAUSED
+        self.goal.save()
+        self.client.post(reverse("goal_update", args=[self.goal.id]),
+                         {"title": "G", "goal_type": "PRIVATE", "status": "ACTIVE"})
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertContains(r, "GoalTask")
+
+
+class Categories(TestCase):
+    """BR-17: grouping view (categories) by goal/context."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_group_by_goal_renders_headers(self):
+        g = Goal.objects.create(owner=self.user, title="MyGoal", goal_type="PRIVATE", status=Goal.Status.ACTIVE)
+        Task.objects.create(owner=self.user, title="WithGoal", task_type=Task.Horizon.TODAY, goal=g)
+        Task.objects.create(owner=self.user, title="NoGoal", task_type=Task.Horizon.TODAY)
+        self.client.post(reverse("set_group"), {"group_by": "goal"})
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertContains(r, "MyGoal")
+        self.assertContains(r, "Без цели")
+        self.assertContains(r, "WithGoal")
+        self.assertContains(r, "NoGoal")
+
+    def test_invalid_group_ignored(self):
+        self.client.post(reverse("set_group"), {"group_by": "bogus"})
+        self.assertNotEqual(self.client.session.get("group_by"), "bogus")
+
+
 class Completed(TestCase):
     """BR-10: completed tasks screen."""
     def setUp(self):
@@ -421,6 +481,49 @@ class ShowHidden(TestCase):
         self.client.post(reverse("toggle_setting", args=["show_hidden"]))
         r = self.client.get(reverse("board") + "?h=TODAY")
         self.assertNotContains(r, "HiddenOne")
+
+
+class GoalTemplates(TestCase):
+    """BR-18: goal templates catalog + create-from-template (milestones, key results)."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+        self.tpl = GoalTemplate.objects.create(owner=self.user, title="Launch", published=True)
+        self.m = MilestoneTemplate.objects.create(template=self.tpl, title="Prep", sort_order=0)
+        TaskTemplate.objects.create(template=self.tpl, milestone=self.m, title="Step A", offset_days=0)
+        TaskTemplate.objects.create(template=self.tpl, milestone=self.m, title="Step B", offset_days=10)
+        KeyResult.objects.create(milestone=self.m, title="KR1", kind=KeyResult.Kind.SUM_RESULT, planned=50)
+
+    def test_catalog_lists_published_template(self):
+        r = self.client.get(reverse("template_list"))
+        self.assertContains(r, "Launch")
+        self.assertContains(r, "Prep")
+        self.assertContains(r, "KR1")
+
+    def test_create_goal_from_template_expands(self):
+        from datetime import date
+        r = self.client.post(reverse("template_create_goal", args=[self.tpl.id]),
+                             {"start_date": "2026-07-01"})
+        self.assertEqual(r.status_code, 302)
+        goal = Goal.objects.get(title="Launch", owner=self.user)
+        self.assertEqual(goal.status, Goal.Status.ACTIVE)
+        # milestone -> project task
+        ms_task = Task.objects.get(title="Prep", owner=self.user)
+        self.assertTrue(ms_task.is_project)
+        self.assertEqual(ms_task.goal_id, goal.id)
+        # task templates -> subtasks of the milestone with relative due dates
+        a = Task.objects.get(title="Step A", owner=self.user)
+        b = Task.objects.get(title="Step B", owner=self.user)
+        self.assertEqual(a.parent_id, ms_task.id)
+        self.assertEqual((a.due_date.year, a.due_date.month, a.due_date.day), (2026, 7, 1))
+        self.assertEqual((b.due_date.year, b.due_date.month, b.due_date.day), (2026, 7, 11))
+
+    def test_other_users_draft_not_listed(self):
+        other = User.objects.create_user("o", password="p")
+        GoalTemplate.objects.create(owner=other, title="SecretDraft", published=False)
+        r = self.client.get(reverse("template_list"))
+        self.assertNotContains(r, "SecretDraft")
 
 
 class Search(TestCase):

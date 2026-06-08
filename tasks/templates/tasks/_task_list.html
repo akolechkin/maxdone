@@ -14,6 +14,12 @@
     <option value="recent" {% if sort == 'recent' %}selected{% endif %}>сначала новые</option>
     <option value="updated" {% if sort == 'updated' %}selected{% endif %}>недавно изменённые</option>
   </select>
+  <select hx-post="{% url 'set_group' %}?h={{ horizon }}" hx-target="#task-list" name="group_by"
+          class="px-2 py-1 rounded-md border border-line text-ink-muted bg-transparent">
+    <option value="none" {% if group_by == 'none' %}selected{% endif %}>без группировки</option>
+    <option value="goal" {% if group_by == 'goal' %}selected{% endif %}>по цели</option>
+    <option value="context" {% if group_by == 'context' %}selected{% endif %}>по контексту</option>
+  </select>
   <button hx-post="{% url 'toggle_setting' 'quick_add' %}?h={{ horizon }}" hx-target="#task-list"
           class="px-2 py-1 rounded-md border {% if quick_add %}bg-accent-soft text-accent-fg border-accent{% else %}border-line text-ink-muted{% endif %}">
     быстрое добавление
@@ -28,8 +34,15 @@
          class="flex-1 text-sm border-0 focus:outline-none bg-transparent py-1">
 </form>
 {% endif %}
-{% for task in tasks %}
-  {% include "tasks/_task_row.html" %}
-{% empty %}
-  <div class="text-sm text-ink-faint py-8 text-center">Здесь пока пусто</div>
-{% endfor %}
+{% if groups %}
+  {% for group_label, group_tasks in groups %}
+  <div class="text-[11px] text-ink-muted uppercase tracking-wide mt-3 mb-1">{{ group_label }}</div>
+  {% for task in group_tasks %}{% include "tasks/_task_row.html" %}{% endfor %}
+  {% endfor %}
+{% else %}
+  {% for task in tasks %}
+    {% include "tasks/_task_row.html" %}
+  {% empty %}
+    <div class="text-sm text-ink-faint py-8 text-center">Здесь пока пусто</div>
+  {% endfor %}
+{% endif %}

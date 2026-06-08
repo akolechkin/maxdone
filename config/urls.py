@@ -15,6 +15,7 @@ urlpatterns = [
     path("completed/", views.completed_list, name="completed_list"),
     path("settings/toggle/<str:key>/", views.toggle_setting, name="toggle_setting"),
     path("settings/sort/", views.set_sort, name="set_sort"),
+    path("settings/group/", views.set_group, name="set_group"),
 
     # tasks
     path("task/new/", views.task_new, name="task_new"),
@@ -31,6 +32,10 @@ urlpatterns = [
     path("task/<str:task_id>/subtask/add/", views.subtask_add, name="subtask_add"),
     path("check/<int:item_id>/toggle/", views.toggle_check_item, name="toggle_check_item"),
     path("check/<int:item_id>/delete/", views.check_item_delete, name="check_item_delete"),
+
+    # goal templates
+    path("templates/", views.template_list, name="template_list"),
+    path("templates/<str:template_id>/create-goal/", views.template_create_goal, name="template_create_goal"),
 
     # goals
     path("goals/", views.goal_list, name="goal_list"),

@@ -1,8 +1,12 @@
+from datetime import datetime
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, get_object_or_404
-from django.views.decorators.http import require_http_methods
+from django.db.models import Q
+from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.utils import timezone
-from .models import Task, Goal, Context, CheckListItem
+from django.utils.dateparse import parse_date
+from django.views.decorators.http import require_http_methods
+from .models import Task, Goal, Context, CheckListItem, GoalTemplate
 from .forms import TaskForm, GoalForm, ContextForm
 from . import services
 
@@ -31,6 +35,7 @@ def _board_tasks(request):
     if not request.session.get("show_hidden"):
         now = timezone.now()
         qs = qs.exclude(state=Task.State.HIDDEN, hide_until_date__gt=now)
+        qs = qs.exclude(goal__status=Goal.Status.PAUSED)  # BR-16: paused goal hides its tasks
     return qs
 
 
@@ -45,12 +50,29 @@ SORT_ORDERS = {
 }
 
 
+def _grouped(tasks, group_by):
+    """BR-17: group an ordered task list by goal/context for the grouped view."""
+    if group_by not in ("goal", "context"):
+        return None
+    empty = "Без цели" if group_by == "goal" else "Без контекста"
+    groups = {}
+    for t in tasks:
+        rel = t.goal if group_by == "goal" else t.context
+        key = rel.title if rel else empty
+        groups.setdefault(key, []).append(t)
+    return list(groups.items())
+
+
 def _board_context(request, horizon="TODAY"):
     label, value = HORIZON_LABELS.get(horizon, HORIZON_LABELS["TODAY"])
     sort = request.session.get("sort", "priority")
     order = SORT_ORDERS.get(sort, SORT_ORDERS["priority"])
+    group_by = request.session.get("group_by", "none")
+    tasks = _board_tasks(request).filter(task_type=value).order_by(*order)
     return {
-        "tasks": _board_tasks(request).filter(task_type=value).order_by(*order),
+        "tasks": tasks,
+        "groups": _grouped(tasks, group_by),
+        "group_by": group_by,
         "sort": sort,
         "horizon": horizon,
         "horizon_value": value,
@@ -298,6 +320,17 @@ def set_sort(request):
 
 
 @login_required
+@require_http_methods(["POST"])
+def set_group(request):
+    """BR-17: choose how the task list is grouped (stored in the session)."""
+    group_by = request.POST.get("group_by", "none")
+    if group_by in ("none", "goal", "context"):
+        request.session["group_by"] = group_by
+    ctx = _board_context(request, request.GET.get("h", "TODAY"))
+    return render(request, "tasks/_task_list.html", ctx)
+
+
+@login_required
 def completed_list(request):
     """BR-10: tasks marked done (not archived), newest completion first."""
     tasks = (Task.objects.filter(owner=request.user, archived=False, done=True)
@@ -320,6 +353,27 @@ def search(request):
     if request.headers.get("HX-Request"):
         return render(request, "tasks/_search_results.html", ctx)
     return render(request, "tasks/search.html", ctx)
+
+
+# ---- Goal templates (BR-18) ----
+
+@login_required
+def template_list(request):
+    """Catalog: published templates + the user's own drafts."""
+    templates = (GoalTemplate.objects.filter(Q(published=True) | Q(owner=request.user))
+                 .prefetch_related("milestones__key_results", "task_templates"))
+    return render(request, "tasks/templates.html", {"templates": templates})
+
+
+@login_required
+@require_http_methods(["POST"])
+def template_create_goal(request, template_id):
+    template = get_object_or_404(
+        GoalTemplate, Q(published=True) | Q(owner=request.user), id=template_id)
+    d = parse_date(request.POST.get("start_date") or "")
+    start_dt = timezone.make_aware(datetime(d.year, d.month, d.day)) if d else timezone.now()
+    services.create_goal_from_template(template, request.user, start_dt)
+    return redirect(reverse("goal_list"))
 
 
 # ---- Goals ----

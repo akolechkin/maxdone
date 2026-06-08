@@ -23,6 +23,9 @@
 | `/task/<id>/copy/`            | task_copy         | POST: дублировать задачу + чек-лист  |
 | `/settings/toggle/<key>/`     | toggle_setting    | POST: переключить show_hidden/quick_add (BR-11) |
 | `/settings/sort/`             | set_sort          | POST: выбрать порядок сортировки (BR-13) |
+| `/settings/group/`            | set_group         | POST: группировка списка (BR-17)     |
+| `/templates/`                 | template_list     | каталог шаблонов целей (BR-18)       |
+| `/templates/<id>/create-goal/`| template_create_goal | POST: создать цель из шаблона      |
 | `/login/` `/logout/`          | auth              | вход/выход                           |
 
 ## HTMX-поведение

@@ -81,3 +81,44 @@
 - `done` — Boolean, default False
 - `sort_order` — Integer, default 0
 - Meta.ordering = ["sort_order"]
+
+## Шаблоны целей (контентная система, из APK GoalTemplate/TaskTemplate)
+
+### Enum: KeyResult.Kind (TextChoices)
+Тип ключевого результата (из APK KeyResultType). Значения ФИКСИРОВАНЫ.
+| value       | label        |
+|-------------|--------------|
+| SIMPLE      | Простой      |
+| SUM_RESULT  | Сумма        |
+| LAST_RESULT | Последнее    |
+
+### Сущность: GoalTemplate (extends TimeStamped)
+Шаблон цели. `owner` — автор шаблона.
+- `title` — Char(255)
+- `description` — Text, blank
+- `goal_type` — Goal.Type, default PRIVATE
+- `published` — Boolean, default False  (published vs draft)
+
+### Сущность: MilestoneTemplate
+НЕ наследует TimeStamped.
+- `template` — FK GoalTemplate, CASCADE, related_name="milestones"
+- `title` — Char(255)
+- `sort_order` — Integer, default 0
+- Meta.ordering = ["sort_order"]
+
+### Сущность: TaskTemplate
+НЕ наследует TimeStamped.
+- `template` — FK GoalTemplate, CASCADE, related_name="task_templates"
+- `milestone` — FK MilestoneTemplate, nullable, CASCADE, related_name="task_templates"
+- `title` — Char(500)
+- `offset_days` — Integer, default 0  (относительный срок от даты старта)
+- `sort_order` — Integer, default 0
+- Meta.ordering = ["sort_order"]
+
+### Сущность: KeyResult
+НЕ наследует TimeStamped. Структура шаблона (план), не рантайм-прогресс.
+- `milestone` — FK MilestoneTemplate, CASCADE, related_name="key_results"
+- `title` — Char(255)
+- `kind` — Kind, default SIMPLE
+- `planned` — Float, default 0.0
+- Meta.ordering = ["id"]

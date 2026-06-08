@@ -4,9 +4,10 @@
 Логика живёт здесь (не во вьюхах), чтобы быть тестируемой и единообразной.
 """
 import re
+from datetime import timedelta
 from django.db.models import Max
 from django.utils import timezone
-from .models import Task
+from .models import Task, Goal
 
 
 def visible_qs(qs):
@@ -51,6 +52,32 @@ def create_task(user, title: str, **kwargs) -> Task:
     """Создание задачи с авто-priority (BR-4)."""
     kwargs.setdefault("priority", next_priority(user))
     return Task.objects.create(owner=user, title=title, **kwargs)
+
+
+def create_goal_from_template(template, owner, start_date):
+    """BR-18: instantiate a real goal from a template, expanding relative dates.
+
+    Milestones become container project-tasks (BR-8); a milestone's task
+    templates become subtasks of it (BR-7). due_date = start_date + offset_days.
+    """
+    goal = Goal.objects.create(
+        owner=owner, title=template.title, description=template.description,
+        goal_type=template.goal_type, status=Goal.Status.ACTIVE, start_period=start_date,
+    )
+    milestone_tasks = {}
+    for ms in template.milestones.all():
+        milestone_tasks[ms.id] = Task.objects.create(
+            owner=owner, title=ms.title, task_type=Task.Horizon.LATER,
+            is_project=True, goal=goal, priority=next_priority(owner),
+        )
+    for tt in template.task_templates.all():
+        Task.objects.create(
+            owner=owner, title=tt.title, task_type=Task.Horizon.LATER, goal=goal,
+            parent=milestone_tasks.get(tt.milestone_id),
+            due_date=start_date + timedelta(days=tt.offset_days),
+            priority=next_priority(owner),
+        )
+    return goal
 
 
 HORIZON_BY_KEY = {
