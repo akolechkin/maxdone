@@ -16,6 +16,18 @@ def set_done(task: Task, done: bool) -> Task:
     return task
 
 
+def apply_hidden_state(task: Task) -> Task:
+    """BR-1 (запись): state выводится из hide_until_date.
+    Будущая дата → HIDDEN, иначе ACTIVE. Не сохраняет — это делает вызывающий.
+    (Из APK: checkIfTaskIsHidden / checkIfShouldUnsetHidden.)"""
+    now = timezone.now()
+    if task.hide_until_date and task.hide_until_date > now:
+        task.state = Task.State.HIDDEN
+    else:
+        task.state = Task.State.ACTIVE
+    return task
+
+
 def next_priority(user) -> float:
     """BR-4: priority новой задачи = максимум среди задач владельца + 1.0."""
     current_max = Task.objects.filter(owner=user).aggregate(m=Max("priority"))["m"]

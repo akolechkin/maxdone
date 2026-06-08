@@ -1,9 +1,11 @@
 """
 Тесты сервисного слоя, выведенные из spec/02_rules.md.
-BR-3 (completion_date) и BR-4 (priority).
+BR-1 (hidden state, запись), BR-3 (completion_date) и BR-4 (priority).
 """
+from datetime import timedelta
 from django.test import TestCase
 from django.contrib.auth.models import User
+from django.utils import timezone
 from tasks.models import Task
 from tasks import services
 
@@ -25,6 +27,31 @@ class CompletionRule(TestCase):
         services.set_done(self.task, False)
         self.assertFalse(self.task.done)
         self.assertIsNone(self.task.completion_date)
+
+
+class HiddenStateRule(TestCase):
+    """BR-1 (запись): state выводится из hide_until_date."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+
+    def test_future_date_hides(self):
+        task = services.create_task(self.user, "t")
+        task.hide_until_date = timezone.now() + timedelta(days=3)
+        services.apply_hidden_state(task)
+        self.assertEqual(task.state, Task.State.HIDDEN)
+
+    def test_no_date_active(self):
+        task = services.create_task(self.user, "t")
+        task.hide_until_date = None
+        services.apply_hidden_state(task)
+        self.assertEqual(task.state, Task.State.ACTIVE)
+
+    def test_past_date_active(self):
+        task = services.create_task(self.user, "t", state=Task.State.HIDDEN)
+        task.hide_until_date = timezone.now() - timedelta(days=1)
+        services.apply_hidden_state(task)
+        self.assertEqual(task.state, Task.State.ACTIVE)
 
 
 class PriorityRule(TestCase):

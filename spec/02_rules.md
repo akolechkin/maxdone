@@ -15,6 +15,10 @@
 То есть скрытая задача с `hide_until_date` в будущем — невидима;
 по наступлении даты — снова видима. (Из APK: checkIfTaskIsHidden / checkIfShouldUnsetHidden)
 
+Запись: при сохранении задачи `state` ВЫВОДИТСЯ из `hide_until_date` —
+если дата в будущем → `state = HIDDEN`, иначе (пусто или в прошлом) → `state = ACTIVE`.
+Реализовано в `tasks/services.py::apply_hidden_state`.
+
 ## BR-2: Счётчики горизонтов
 Для каждого из TODAY/WEEK/LATER/INBOX счётчик = число ВИДИМЫХ (BR-1)
 задач с этим `task_type`.

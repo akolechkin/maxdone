@@ -90,6 +90,31 @@ class TaskSave(TestCase):
         self.assertIsNotNone(self.task.due_date)
         self.assertEqual(self.task.due_date.date().isoformat(), "2026-06-10")
 
+    def test_hide_until_future_hides_task(self):  # BR-1 write side
+        from tasks.views import _visible_tasks
+        resp = self.client.post(
+            reverse("task_save", args=[self.task.id]),
+            {"title": "t", "task_type": Task.Horizon.INBOX, "hide_until_date": "2026-12-31"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.state, Task.State.HIDDEN)
+        self.assertNotIn(self.task, _visible_tasks(self.user))
+
+    def test_clearing_hide_until_keeps_active(self):  # BR-1 write side
+        from tasks.views import _visible_tasks
+        self.client.post(
+            reverse("task_save", args=[self.task.id]),
+            {"title": "t", "task_type": Task.Horizon.INBOX, "hide_until_date": "2026-12-31"},
+        )
+        self.client.post(
+            reverse("task_save", args=[self.task.id]),
+            {"title": "t", "task_type": Task.Horizon.INBOX, "hide_until_date": ""},
+        )
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.state, Task.State.ACTIVE)
+        self.assertIn(self.task, _visible_tasks(self.user))
+
     def test_cannot_save_other_users_task(self):  # BR-6
         other = User.objects.create_user("o", password="p")
         victim = services.create_task(other, "secret")

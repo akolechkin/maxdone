@@ -89,9 +89,11 @@ def task_save(request, task_id):
     """spec/03_api_ui.md: сохранение полей задачи из редактора.
     goal/context ограничены владельцем (BR-6). Ответ: редактор + OOB-строка."""
     from .forms import TaskEditForm
+    from .services import apply_hidden_state
     task = get_object_or_404(Task, id=task_id, owner=request.user)
     form = TaskEditForm(request.POST, instance=task, owner=request.user)
     if form.is_valid():
+        apply_hidden_state(form.instance)  # BR-1 write side: derive state from hide_until_date
         task = form.save()
     ctx = _editor_ctx(request, task)
     ctx["form"] = form
