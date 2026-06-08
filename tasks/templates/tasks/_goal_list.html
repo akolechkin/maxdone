@@ -1,0 +1,13 @@
+{% for goal in goals %}
+<div class="flex items-center gap-3 p-3 border border-line rounded-md mb-2 group">
+  <div class="w-9 h-9 rounded-lg {% if goal.goal_type == 'PRIVATE' %}bg-teal-soft text-teal-fg{% else %}bg-accent-soft text-accent-fg{% endif %} grid place-items-center text-sm">◎</div>
+  <div class="flex-1 min-w-0 cursor-pointer" hx-get="{% url 'goal_edit' goal.id %}" hx-target="#goal-editor" @click="editorOpen=true">
+    <div class="text-sm font-medium">{{ goal.title }}</div>
+    <div class="text-[11px] text-ink-faint">{{ goal.get_goal_type_display }}{% if goal.status %} · {{ goal.status }}{% endif %}</div>
+  </div>
+  <button hx-post="{% url 'goal_delete' goal.id %}" hx-target="#goal-list"
+          class="opacity-0 group-hover:opacity-100 text-ink-faint hover:text-ink text-sm">удалить</button>
+</div>
+{% empty %}
+<div class="text-sm text-ink-faint py-8 text-center">Пока нет целей</div>
+{% endfor %}

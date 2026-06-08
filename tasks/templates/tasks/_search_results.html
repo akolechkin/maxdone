@@ -1,0 +1,16 @@
+{% if q %}
+  {% if tasks %}<div class="text-[11px] text-ink-faint mb-2">Задачи</div>{% endif %}
+  {% for task in tasks %}
+    <div class="flex items-center gap-2 py-2 border-b border-line">
+      <span class="text-sm flex-1 {% if task.done %}line-through text-ink-faint{% endif %}">{{ task.title }}</span>
+      {% if task.goal %}<span class="chip bg-teal-soft text-teal-fg">{{ task.goal.title }}</span>{% endif %}
+    </div>
+  {% endfor %}
+  {% if goals %}<div class="text-[11px] text-ink-faint mt-4 mb-2">Цели</div>{% endif %}
+  {% for goal in goals %}
+    <div class="py-2 border-b border-line text-sm">{{ goal.title }}</div>
+  {% endfor %}
+  {% if not tasks and not goals %}<div class="text-sm text-ink-faint py-6 text-center">Ничего не найдено</div>{% endif %}
+{% else %}
+  <div class="text-sm text-ink-faint py-6 text-center">Введите запрос</div>
+{% endif %}

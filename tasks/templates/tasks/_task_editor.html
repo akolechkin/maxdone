@@ -1,77 +1,135 @@
-{# Редактируемая форма задачи (spec/03_api_ui.md). hx-post -> task_save. #}
+{% if task %}
+  {% url 'task_update' task.id as post_url %}
+{% else %}
+  {% url 'task_create' as post_url %}
+{% endif %}
 <div class="flex items-center gap-2.5 mb-3.5">
-  <span class="text-xs text-ink-faint flex-1">Редактирование</span>
-  <button type="button" @click="editorOpen=false" class="text-ink-muted text-lg leading-none">&times;</button>
+  <span class="text-xs text-ink-faint flex-1">{% if task %}Редактирование{% else %}Новая задача{% endif %}</span>
+  {% if task %}
+  <button hx-post="{% url 'task_delete' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
+          @click="editorOpen=false" class="text-ink-faint hover:text-ink text-sm">удалить</button>
+  {% endif %}
+  <button @click="editorOpen=false" class="text-ink-muted text-lg leading-none">&times;</button>
 </div>
 
-<form hx-post="{% url 'task_save' task.id %}" hx-target="#editor-body" hx-swap="innerHTML"
-      class="space-y-2.5 text-xs">
+<form hx-post="{{ post_url }}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list" class="space-y-3">
+  <div>{{ form.title }}
+    {% if form.title.errors %}<div class="text-xs text-red-600 mt-1">{{ form.title.errors.0 }}</div>{% endif %}</div>
 
-  {% if form.errors %}
-    <div class="text-[11px] text-rose-600">{{ form.title.errors|join:" " }}{{ form.non_field_errors|join:" " }}</div>
-  {% endif %}
-
-  <input name="title" value="{{ task.title }}" maxlength="500" required placeholder="Название"
-         class="w-full text-[15px] font-medium leading-snug bg-transparent border-b border-line
-                focus:outline-none focus:border-accent py-1">
-
-  <div class="flex gap-1 bg-surface-alt rounded-md p-1">
-    {% for val, label in horizons %}
-      {% if val %}
-      <label class="flex-1 text-center text-[10px] py-1.5 rounded-md cursor-pointer
-                    has-[:checked]:bg-accent-soft has-[:checked]:text-accent-fg has-[:checked]:font-medium
-                    text-ink-muted">
-        <input type="radio" name="task_type" value="{{ val }}" class="sr-only"
-               {% if task.task_type == val %}checked{% endif %}>{{ label }}
-      </label>
-      {% endif %}
-    {% endfor %}
+  <div class="flex flex-wrap gap-2 text-xs items-center">
+    <label class="text-ink-muted w-16">Горизонт</label>{{ form.task_type }}
   </div>
+  <div class="flex flex-wrap gap-2 text-xs items-center">
+    <label class="text-ink-muted w-16">Цель</label>{{ form.goal }}
+  </div>
+  <div class="flex flex-wrap gap-2 text-xs items-center">
+    <label class="text-ink-muted w-16">Контекст</label>{{ form.context }}
+  </div>
+  <div class="flex flex-wrap gap-2 text-xs items-center">
+    <label class="text-ink-muted w-16">Срок</label>{{ form.due_date }}
+    <button type="button" class="text-ink-faint hover:text-ink"
+            onclick="this.parentNode.querySelector('input').value=''">очистить</button>
+  </div>
+  <div class="flex flex-wrap gap-2 text-xs items-center">
+    <label class="text-ink-muted w-16">Скрыть до</label>{{ form.hide_until_date }}
+    <button type="button" class="text-ink-faint hover:text-ink"
+            onclick="this.parentNode.querySelector('input').value=''">очистить</button>
+  </div>
+  <div class="flex flex-wrap gap-2 text-xs items-center"
+       x-data="recurrence('{{ form.recur_rule.value|default_if_none:'' }}')">
+    <label class="text-ink-muted w-16">Повтор</label>
+    <input type="hidden" name="recur_rule" :value="rrule()">
+    <button type="button" @click="open=true"
+            class="border border-line rounded-md px-2 py-1.5 text-left flex-1 hover:border-line-strong"
+            x-text="summary()"></button>
 
-  <label class="flex gap-2.5 items-center py-1">
-    <span class="text-ink-muted w-16 shrink-0">Цель</span>
-    <select name="goal" class="flex-1 bg-transparent border-b border-line focus:outline-none focus:border-accent py-1">
-      <option value="">—</option>
-      {% for g in goals %}<option value="{{ g.id }}" {% if task.goal_id == g.id %}selected{% endif %}>{{ g.title }}</option>{% endfor %}
-    </select>
-  </label>
+    {# Recurrence picker modal (mirrors RecurrencePickerDialog) #}
+    <template x-teleport="body">
+      <div x-show="open" x-cloak @keydown.escape.window="open=false"
+           class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" style="display:none">
+        <div @click.outside="open=false"
+             class="bg-surface rounded-lg w-full max-w-sm p-4 space-y-3 text-xs max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between">
+            <span class="text-sm">Повтор</span>
+            <button type="button" @click="open=false" class="text-ink-muted text-lg leading-none">&times;</button>
+          </div>
 
-  <label class="flex gap-2.5 items-center py-1">
-    <span class="text-ink-muted w-16 shrink-0">Контекст</span>
-    <select name="context" class="flex-1 bg-transparent border-b border-line focus:outline-none focus:border-accent py-1">
-      <option value="">—</option>
-      {% for c in contexts %}<option value="{{ c.id }}" {% if task.context_id == c.id %}selected{% endif %}>@{{ c.title }}</option>{% endfor %}
-    </select>
-  </label>
+          <label class="flex items-center gap-2">
+            <input type="checkbox" x-model="enabled"> <span>повторять</span>
+          </label>
 
-  <label class="flex gap-2.5 items-center py-1">
-    <span class="text-ink-muted w-16 shrink-0">Срок</span>
-    <input type="date" name="due_date" value="{{ task.due_date|date:'Y-m-d' }}"
-           class="flex-1 bg-transparent border-b border-line focus:outline-none focus:border-accent py-1">
-  </label>
+          <div x-show="enabled" class="space-y-3">
+            <div class="flex items-center gap-2">
+              <span class="text-ink-muted">каждые</span>
+              <input type="number" min="1" x-model.number="interval"
+                     class="border border-line rounded-md px-2 py-1 w-16">
+              <select x-model="freq" class="border border-line rounded-md px-2 py-1 flex-1">
+                <template x-for="f in FREQS" :key="f[0]">
+                  <option :value="f[0]" x-text="f[1]"></option>
+                </template>
+              </select>
+            </div>
 
-  <label class="flex gap-2.5 items-center py-1">
-    <span class="text-ink-muted w-16 shrink-0">Скрыть до</span>
-    <input type="date" name="hide_until_date" value="{{ task.hide_until_date|date:'Y-m-d' }}"
-           class="flex-1 bg-transparent border-b border-line focus:outline-none focus:border-accent py-1">
-  </label>
+            {# WEEKLY: weekday buttons -> BYDAY #}
+            <div x-show="freq==='WEEKLY'" class="flex flex-wrap gap-1">
+              <template x-for="w in WEEKDAYS" :key="w[0]">
+                <button type="button" @click="toggleDay(w[0])" x-text="w[1]"
+                        class="px-2 py-1 rounded-md border"
+                        :class="byday.includes(w[0]) ? 'bg-accent text-white border-accent' : 'border-line'"></button>
+              </template>
+            </div>
 
-  <label class="flex gap-2.5 items-center py-1">
-    <span class="text-ink-muted w-16 shrink-0">Повтор</span>
-    <input name="recur_rule" value="{{ task.recur_rule }}" placeholder="RRULE"
-           class="flex-1 bg-transparent border-b border-line focus:outline-none focus:border-accent py-1">
-  </label>
+            {# MONTHLY: by-date OR by-nth-weekday #}
+            <div x-show="freq==='MONTHLY'" class="space-y-2">
+              <label class="flex items-center gap-2">
+                <input type="radio" value="date" x-model="monthlyMode"> <span>в день месяца</span>
+                <input type="number" min="1" max="31" x-model.number="monthday"
+                       :disabled="monthlyMode!=='date'" class="border border-line rounded-md px-2 py-1 w-16">
+              </label>
+              <label class="flex items-center gap-2">
+                <input type="radio" value="nth" x-model="monthlyMode"> <span>в</span>
+                <select x-model="nthPos" :disabled="monthlyMode!=='nth'" class="border border-line rounded-md px-1 py-1">
+                  <template x-for="n in NTHPOS" :key="n[0]"><option :value="n[0]" x-text="n[1]"></option></template>
+                </select>
+                <select x-model="nthDay" :disabled="monthlyMode!=='nth'" class="border border-line rounded-md px-1 py-1">
+                  <template x-for="w in WEEKDAYS" :key="w[0]"><option :value="w[0]" x-text="w[1]"></option></template>
+                </select>
+              </label>
+            </div>
 
-  <label class="flex gap-2.5 items-start py-1">
-    <span class="text-ink-muted w-16 shrink-0 pt-1">Заметка</span>
-    <textarea name="note" rows="3"
-              class="flex-1 bg-transparent border border-line rounded-md focus:outline-none focus:border-accent p-1.5">{{ task.note }}</textarea>
-  </label>
+            {# end condition #}
+            <div class="space-y-1.5 border-t border-line pt-2">
+              <div class="text-ink-muted">окончание</div>
+              <label class="flex items-center gap-2"><input type="radio" value="never" x-model="endMode"> никогда</label>
+              <label class="flex items-center gap-2">
+                <input type="radio" value="until" x-model="endMode"> до
+                <input type="date" x-model="until" :disabled="endMode!=='until'"
+                       class="border border-line rounded-md px-2 py-1">
+              </label>
+              <label class="flex items-center gap-2">
+                <input type="radio" value="count" x-model="endMode">
+                <input type="number" min="1" x-model.number="count" :disabled="endMode!=='count'"
+                       class="border border-line rounded-md px-2 py-1 w-16"> раз
+              </label>
+            </div>
+          </div>
 
-  <button type="submit" class="btn-accent w-full mt-1">Сохранить</button>
+          <div class="flex justify-end gap-2 border-t border-line pt-2">
+            <button type="button" @click="open=false" class="text-ink-muted px-3 py-1.5">отмена</button>
+            <button type="button" @click="open=false" class="btn-accent">готово</button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+  <div>{{ form.note }}</div>
+
+  <button type="submit" class="btn-accent w-full">{% if task %}Сохранить{% else %}Создать{% endif %}</button>
 </form>
 
-<div class="mt-3 border-t border-line pt-2.5">
+{% if task %}
+<div class="mt-4 border-t border-line pt-3">
   <div class="text-[11px] text-ink-muted mb-1.5">Чек-лист</div>
-  {% for item in task.checklist.all %}{% include "tasks/_check_item.html" %}{% endfor %}
+  {% include "tasks/_checklist.html" %}
 </div>
+{% endif %}

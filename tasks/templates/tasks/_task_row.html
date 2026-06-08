@@ -1,17 +1,22 @@
-<div id="task-{{ task.id }}" {% if oob %}hx-swap-oob="true"{% endif %} class="flex gap-2.5 py-2.5 border-b border-line">
+<div id="task-{{ task.id }}" class="flex gap-2.5 py-2.5 border-b border-line group">
   <button hx-post="{% url 'toggle_done' task.id %}" hx-target="#task-{{ task.id }}" hx-swap="outerHTML"
           class="w-[18px] h-[18px] rounded-[5px] border-[1.5px] mt-0.5 shrink-0
                  {% if task.done %}bg-teal border-teal{% else %}border-line-strong{% endif %}"></button>
   <div class="flex-1 min-w-0 cursor-pointer"
-       hx-get="{% url 'task_detail' task.id %}" hx-target="#editor-body"
-       @click="editorOpen=true">
+       hx-get="{% url 'task_detail' task.id %}" hx-target="#editor-body" @click="editorOpen=true">
     <div class="text-sm leading-snug {% if task.done %}line-through text-ink-faint{% endif %}">{{ task.title }}</div>
-    <div class="flex gap-1.5 mt-1.5 flex-wrap">
+    <div class="flex gap-1.5 mt-1.5 flex-wrap items-center">
       {% if task.goal %}<span class="chip bg-teal-soft text-teal-fg">{{ task.goal.title }}</span>{% endif %}
       {% if task.context %}<span class="chip bg-surface-alt text-ink-muted">@{{ task.context.title }}</span>{% endif %}
-      {% with done=task.checklist.all|length %}
-        {% if done %}<span class="chip text-ink-faint">{{ task.checklist.all|length }} пункт.</span>{% endif %}
-      {% endwith %}
+      {% if task.due_date %}<span class="chip text-ink-faint">⏱ {{ task.due_date|date:"d.m H:i" }}</span>{% endif %}
+      {% if task.recur_rule %}<span class="chip text-ink-faint">↻</span>{% endif %}
+      {% with total=task.checklist.count %}{% if total %}<span class="chip text-ink-faint">☑ {{ total }}</span>{% endif %}{% endwith %}
     </div>
+  </div>
+  <div class="opacity-0 group-hover:opacity-100 flex gap-1 items-start transition">
+    {% for key, label in horizon_nav %}{% if key != horizon %}
+      <button title="→ {{ label }}" hx-post="{% url 'task_move' task.id key %}?h={{ horizon }}"
+              hx-target="#task-list" class="text-[10px] text-ink-faint hover:text-accent px-1">{{ label|slice:":2" }}</button>
+    {% endif %}{% endfor %}
   </div>
 </div>

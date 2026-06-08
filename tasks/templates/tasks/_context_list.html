@@ -1,0 +1,12 @@
+<div id="context-list" class="space-y-2">
+{% for c in contexts %}
+  <div class="flex items-center gap-2 p-2.5 border border-line rounded-md group">
+    <span class="chip bg-surface-alt text-ink-muted">@{{ c.title }}</span>
+    <span class="flex-1 text-sm">{{ c.title }}</span>
+    <button hx-post="{% url 'context_delete' c.id %}" hx-target="#context-list" hx-swap="outerHTML"
+            class="opacity-0 group-hover:opacity-100 text-ink-faint hover:text-ink text-sm">удалить</button>
+  </div>
+{% empty %}
+  <div class="text-sm text-ink-faint py-6 text-center">Пока нет контекстов</div>
+{% endfor %}
+</div>

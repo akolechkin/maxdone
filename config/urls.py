@@ -6,11 +6,33 @@ from tasks import views
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
-    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("logout/", auth_views.LogoutView.as_view(next_page="login"), name="logout"),
+
     path("", views.board, name="board"),
-    path("task/new/", views.task_create, name="task_create"),
+    path("search/", views.search, name="search"),
+
+    # tasks
+    path("task/new/", views.task_new, name="task_new"),
+    path("task/create/", views.task_create, name="task_create"),
     path("task/<str:task_id>/", views.task_detail, name="task_detail"),
-    path("task/<str:task_id>/save/", views.task_save, name="task_save"),
+    path("task/<str:task_id>/update/", views.task_update, name="task_update"),
+    path("task/<str:task_id>/delete/", views.task_delete, name="task_delete"),
     path("task/<str:task_id>/toggle/", views.toggle_done, name="toggle_done"),
+    path("task/<str:task_id>/move/<str:horizon>/", views.task_move, name="task_move"),
+    path("task/<str:task_id>/checklist/add/", views.check_item_add, name="check_item_add"),
     path("check/<int:item_id>/toggle/", views.toggle_check_item, name="toggle_check_item"),
+    path("check/<int:item_id>/delete/", views.check_item_delete, name="check_item_delete"),
+
+    # goals
+    path("goals/", views.goal_list, name="goal_list"),
+    path("goals/new/", views.goal_new, name="goal_new"),
+    path("goals/create/", views.goal_create, name="goal_create"),
+    path("goals/<str:goal_id>/edit/", views.goal_edit, name="goal_edit"),
+    path("goals/<str:goal_id>/update/", views.goal_update, name="goal_update"),
+    path("goals/<str:goal_id>/delete/", views.goal_delete, name="goal_delete"),
+
+    # contexts
+    path("contexts/", views.context_list, name="context_list"),
+    path("contexts/create/", views.context_create, name="context_create"),
+    path("contexts/<str:context_id>/delete/", views.context_delete, name="context_delete"),
 ]

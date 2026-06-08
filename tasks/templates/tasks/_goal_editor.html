@@ -1,0 +1,15 @@
+{% if goal %}{% url 'goal_update' goal.id as post_url %}{% else %}{% url 'goal_create' as post_url %}{% endif %}
+<div class="flex items-center gap-2.5 mb-3.5">
+  <span class="text-xs text-ink-faint flex-1">{% if goal %}Редактирование цели{% else %}Новая цель{% endif %}</span>
+  <button @click="editorOpen=false" class="text-ink-muted text-lg leading-none">&times;</button>
+</div>
+<form hx-post="{{ post_url }}" hx-target="#goal-list" class="space-y-3"
+      hx-on::after-request="if(event.detail.successful){ this.closest('[x-data]').__x.$data.editorOpen=false }">
+  <div>{{ form.title }}{% if form.title.errors %}<div class="text-xs text-red-600 mt-1">{{ form.title.errors.0 }}</div>{% endif %}</div>
+  <div class="flex flex-wrap gap-2 text-xs items-center"><label class="text-ink-muted w-16">Тип</label>{{ form.goal_type }}</div>
+  <div class="flex flex-wrap gap-2 text-xs items-center"><label class="text-ink-muted w-16">Статус</label>{{ form.status }}</div>
+  <div class="flex flex-wrap gap-2 text-xs items-center"><label class="text-ink-muted w-16">Начало</label>{{ form.start_period }}</div>
+  <div class="flex flex-wrap gap-2 text-xs items-center"><label class="text-ink-muted w-16">Конец</label>{{ form.end_period }}</div>
+  <div>{{ form.description }}</div>
+  <button type="submit" class="btn-accent w-full">{% if goal %}Сохранить{% else %}Создать{% endif %}</button>
+</form>

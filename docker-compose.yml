@@ -17,6 +17,7 @@ services:
     build: .
     command: >
       sh -c "python manage.py migrate &&
+             python manage.py seed &&
              python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
@@ -29,13 +30,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-
-  tailwind:
-    build: .
-    command: sh -c "npm install && npx tailwindcss -i ./theme/input.css -o ./static/css/app.css --watch"
-    volumes:
-      - .:/app
-    profiles: ["assets"]
 
 volumes:
   pgdata:

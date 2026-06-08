@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="p-3 max-w-[640px] mx-auto">
+  <div class="bg-surface border border-line rounded-lg overflow-hidden min-h-[300px]">
+    <div class="flex items-center gap-3 border-b border-line px-4 py-3">
+      <a href="{% url 'board' %}" class="text-sm text-ink-muted hover:text-ink">← задачи</a>
+      <h3 class="text-lg font-medium m-0">Контексты</h3>
+    </div>
+    <div class="p-4">
+      <form hx-post="{% url 'context_create' %}" hx-target="#context-list" hx-swap="outerHTML"
+            class="flex gap-2 mb-4" @submit="$nextTick(()=>$el.reset())">
+        {% csrf_token %}
+        <input name="title" placeholder="Новый контекст (например, дома)"
+               class="flex-1 border border-line rounded-md px-3 py-2 text-sm">
+        <button class="btn-accent">Добавить</button>
+      </form>
+      {% include "tasks/_context_list.html" %}
+    </div>
+  </div>
+</div>
+{% endblock %}

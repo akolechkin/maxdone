@@ -1,0 +1,9 @@
+<div id="checklist-{{ task.id }}">
+  {% for item in task.checklist.all %}{% include "tasks/_check_item.html" %}{% endfor %}
+  <form hx-post="{% url 'check_item_add' task.id %}" hx-target="#checklist-{{ task.id }}" hx-swap="outerHTML"
+        class="flex items-center gap-2 mt-1.5" @submit="$nextTick(()=>$el.reset())">
+    <span class="text-ink-faint text-sm">+</span>
+    <input name="title" placeholder="Добавить пункт"
+           class="flex-1 text-xs border-0 border-b border-line focus:outline-none focus:border-accent bg-transparent py-1">
+  </form>
+</div>

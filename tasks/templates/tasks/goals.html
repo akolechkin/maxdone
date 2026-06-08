@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="p-3 max-w-[800px] mx-auto" x-data="{ editorOpen:false }">
+  <div class="bg-surface border border-line rounded-lg overflow-hidden min-h-[400px]">
+    <div class="flex items-center justify-between border-b border-line px-4 py-3">
+      <div class="flex items-center gap-3">
+        <a href="{% url 'board' %}" class="text-sm text-ink-muted hover:text-ink">← задачи</a>
+        <h3 class="text-lg font-medium m-0">Цели</h3>
+      </div>
+      <button class="btn-accent" hx-get="{% url 'goal_new' %}" hx-target="#goal-editor" @click="editorOpen=true">+ Цель</button>
+    </div>
+    <div class="grid grid-cols-[minmax(0,1fr)_auto]">
+      <div id="goal-list" class="p-4">{% include "tasks/_goal_list.html" %}</div>
+      <div class="border-l border-line transition-all overflow-hidden" :class="editorOpen ? 'w-[300px]' : 'w-0'">
+        <div class="w-[300px] p-4" id="goal-editor"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
