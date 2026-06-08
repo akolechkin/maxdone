@@ -79,6 +79,17 @@ class TaskSave(TestCase):
         self.assertEqual(self.task.goal_id, goal.id)
         self.assertEqual(self.task.context_id, ctx.id)
 
+    def test_save_accepts_date_only_due_date(self):
+        # Регресс Phase B: due_date вводится как дата (без времени).
+        resp = self.client.post(
+            reverse("task_save", args=[self.task.id]),
+            {"title": "t", "task_type": Task.Horizon.INBOX, "due_date": "2026-06-10"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.task.refresh_from_db()
+        self.assertIsNotNone(self.task.due_date)
+        self.assertEqual(self.task.due_date.date().isoformat(), "2026-06-10")
+
     def test_cannot_save_other_users_task(self):  # BR-6
         other = User.objects.create_user("o", password="p")
         victim = services.create_task(other, "secret")
