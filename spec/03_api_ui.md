@@ -10,6 +10,7 @@
 | `/`                           | board             | главный экран; `?h=` выбор горизонта|
 | `/task/new/`                  | task_create       | POST: создать задачу в горизонте `h` |
 | `/task/<id>/`                 | task_detail       | фрагмент редактора (HTMX)            |
+| `/task/<id>/save/`            | task_save         | POST: сохранить поля задачи (фрагмент)|
 | `/task/<id>/toggle/`          | toggle_done       | POST: переключить done (фрагмент)    |
 | `/check/<id>/toggle/`         | toggle_check_item | POST: переключить пункт чек-листа    |
 | `/login/` `/logout/`          | auth              | вход/выход                           |
@@ -24,6 +25,11 @@
   задачу (`services.create_task`, авто-priority BR-4), горизонт = `h` (по умолчанию INBOX).
   Ответ: фрагмент редактора в `#editor-body` + OOB-обновление `#task-list`; Alpine
   открывает панель. Кнопка НЕ должна открывать существующую задачу.
+- Редактор `/task/<id>/` — это РЕДАКТИРУЕМАЯ форма (не только просмотр). Поля:
+  `title`, `note`, `task_type` (горизонт), `goal`, `context`, `due_date`,
+  `hide_until_date`, `recur_rule` (TaskEditFragment, провенанс §134).
+  Submit → hx-post `/task/<id>/save/`; ответ: обновлённый редактор в `#editor-body`
+  + OOB-обновление строки `#task-{id}`. `goal`/`context` ограничены владельцем (BR-6).
 
 ## UI-раскладка (десктоп)
 Постоянный сайдбар (горизонты + счётчики + группировка) | колонка с верхними

@@ -10,6 +10,7 @@ urlpatterns = [
     path("", views.board, name="board"),
     path("task/new/", views.task_create, name="task_create"),
     path("task/<str:task_id>/", views.task_detail, name="task_detail"),
+    path("task/<str:task_id>/save/", views.task_save, name="task_save"),
     path("task/<str:task_id>/toggle/", views.toggle_done, name="toggle_done"),
     path("check/<int:item_id>/toggle/", views.toggle_check_item, name="toggle_check_item"),
 ]

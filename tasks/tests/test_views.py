@@ -4,7 +4,7 @@
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.urls import reverse
-from tasks.models import Task
+from tasks.models import Task, Goal, Context
 from tasks import services
 
 
@@ -45,3 +45,57 @@ class NewTaskCreation(TestCase):
         self.client.post(reverse("task_create"))
         newest = Task.objects.filter(owner=self.user).latest("created")
         self.assertEqual(newest.task_type, Task.Horizon.INBOX)
+
+
+class TaskSave(TestCase):
+    """spec/03_api_ui.md: редактор сохраняет поля задачи; BR-6 на запись."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client.force_login(self.user)
+        self.task = services.create_task(
+            self.user, "old", task_type=Task.Horizon.INBOX
+        )
+
+    def test_save_updates_fields(self):
+        goal = Goal.objects.create(owner=self.user, title="G")
+        ctx = Context.objects.create(owner=self.user, title="C")
+        resp = self.client.post(
+            reverse("task_save", args=[self.task.id]),
+            {
+                "title": "new title",
+                "note": "a note",
+                "task_type": Task.Horizon.WEEK,
+                "goal": goal.id,
+                "context": ctx.id,
+                "recur_rule": "FREQ=DAILY",
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.title, "new title")
+        self.assertEqual(self.task.note, "a note")
+        self.assertEqual(self.task.task_type, Task.Horizon.WEEK)
+        self.assertEqual(self.task.goal_id, goal.id)
+        self.assertEqual(self.task.context_id, ctx.id)
+
+    def test_cannot_save_other_users_task(self):  # BR-6
+        other = User.objects.create_user("o", password="p")
+        victim = services.create_task(other, "secret")
+        resp = self.client.post(
+            reverse("task_save", args=[victim.id]), {"title": "hacked"}
+        )
+        self.assertEqual(resp.status_code, 404)
+        victim.refresh_from_db()
+        self.assertEqual(victim.title, "secret")
+
+    def test_cannot_assign_other_users_goal(self):  # BR-6 на запись
+        other = User.objects.create_user("o", password="p")
+        foreign_goal = Goal.objects.create(owner=other, title="theirs")
+        resp = self.client.post(
+            reverse("task_save", args=[self.task.id]),
+            {"title": "t", "task_type": Task.Horizon.INBOX, "goal": foreign_goal.id},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.task.refresh_from_db()
+        self.assertIsNone(self.task.goal_id)

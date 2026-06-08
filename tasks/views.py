@@ -68,16 +68,34 @@ def task_create(request):
     return render(request, "tasks/_task_created.html", ctx)
 
 
-@login_required
-def task_detail(request, task_id):
-    task = get_object_or_404(Task, id=task_id, owner=request.user)
-    ctx = {
+def _editor_ctx(request, task):
+    return {
         "task": task,
         "goals": Goal.objects.filter(owner=request.user, archived=False),
         "contexts": Context.objects.filter(owner=request.user, archived=False),
         "horizons": Task.Horizon.choices,
     }
-    return render(request, "tasks/_task_editor.html", ctx)
+
+
+@login_required
+def task_detail(request, task_id):
+    task = get_object_or_404(Task, id=task_id, owner=request.user)
+    return render(request, "tasks/_task_editor.html", _editor_ctx(request, task))
+
+
+@login_required
+@require_http_methods(["POST"])
+def task_save(request, task_id):
+    """spec/03_api_ui.md: сохранение полей задачи из редактора.
+    goal/context ограничены владельцем (BR-6). Ответ: редактор + OOB-строка."""
+    from .forms import TaskEditForm
+    task = get_object_or_404(Task, id=task_id, owner=request.user)
+    form = TaskEditForm(request.POST, instance=task, owner=request.user)
+    if form.is_valid():
+        task = form.save()
+    ctx = _editor_ctx(request, task)
+    ctx["form"] = form
+    return render(request, "tasks/_task_saved.html", ctx)
 
 
 @login_required
