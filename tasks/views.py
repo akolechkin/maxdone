@@ -1,5 +1,7 @@
 from datetime import datetime
+from django.contrib.auth import login as auth_login
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
 from django.db.models import Q
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
@@ -9,6 +11,19 @@ from django.views.decorators.http import require_http_methods
 from .models import Task, Goal, Context, CheckListItem, GoalTemplate
 from .forms import TaskForm, GoalForm, ContextForm
 from . import services
+
+
+def signup(request):
+    """Feature catalog #16: self-service registration (web equivalent of signUp)."""
+    if request.method == "POST":
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            auth_login(request, user)
+            return redirect("board")
+    else:
+        form = UserCreationForm()
+    return render(request, "registration/signup.html", {"form": form})
 
 HORIZON_LABELS = {
     "TODAY": ("Сегодня", Task.Horizon.TODAY),
@@ -380,8 +395,12 @@ def template_create_goal(request, template_id):
 
 @login_required
 def goal_list(request):
+    # Feature catalog #10: "мои" vs "общие" goals (shared flag).
+    scope = request.GET.get("scope", "mine")
     goals = Goal.objects.filter(owner=request.user, archived=False)
-    ctx = {"goals": goals}
+    if scope == "shared":
+        goals = goals.filter(shared=True)
+    ctx = {"goals": goals, "scope": scope}
     if request.headers.get("HX-Request"):
         return render(request, "tasks/_goal_list.html", ctx)
     return render(request, "tasks/goals.html", ctx)

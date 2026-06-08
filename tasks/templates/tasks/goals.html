@@ -7,7 +7,13 @@
         <a href="{% url 'board' %}" class="text-sm text-ink-muted hover:text-ink">← задачи</a>
         <h3 class="text-lg font-medium m-0">Цели</h3>
       </div>
-      <button class="btn-accent" hx-get="{% url 'goal_new' %}" hx-target="#goal-editor" @click="editorOpen=true">+ Цель</button>
+      <div class="flex items-center gap-2">
+        <a href="?scope=mine" hx-get="?scope=mine" hx-target="#goal-list"
+           class="text-xs px-2 py-1 rounded-md {% if scope != 'shared' %}bg-accent-soft text-accent-fg{% else %}text-ink-muted{% endif %}">Мои</a>
+        <a href="?scope=shared" hx-get="?scope=shared" hx-target="#goal-list"
+           class="text-xs px-2 py-1 rounded-md {% if scope == 'shared' %}bg-accent-soft text-accent-fg{% else %}text-ink-muted{% endif %}">Общие</a>
+        <button class="btn-accent" hx-get="{% url 'goal_new' %}" hx-target="#goal-editor" @click="editorOpen=true">+ Цель</button>
+      </div>
     </div>
     <div class="grid grid-cols-[minmax(0,1fr)_auto]">
       <div id="goal-list" class="p-4">{% include "tasks/_goal_list.html" %}</div>

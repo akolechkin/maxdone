@@ -56,6 +56,7 @@
 - `status` — Status, default ACTIVE
 - `start_period` / `end_period` — Date, nullable
 - `shared` — Boolean, default False
+- `icon` — Char(255), blank  (эмодзи или URL картинки; из APK fetchPictureByUrl)
 
 ## Сущность: Task (extends TimeStamped)
 - `title` — Char(500)

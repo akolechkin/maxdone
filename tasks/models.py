@@ -50,6 +50,7 @@ class Goal(TimeStamped):
     start_period = models.DateField(null=True, blank=True)
     end_period = models.DateField(null=True, blank=True)
     shared = models.BooleanField(default=False)
+    icon = models.CharField(max_length=255, blank=True)  # emoji or image URL
 
     def __str__(self):
         return self.title

@@ -526,6 +526,46 @@ class GoalTemplates(TestCase):
         self.assertNotContains(r, "SecretDraft")
 
 
+class Registration(TestCase):
+    """Feature catalog #16: self-service signup."""
+    def test_signup_creates_and_logs_in(self):
+        c = Client()
+        r = c.post(reverse("signup"),
+                   {"username": "newbie", "password1": "Str0ngPass!23", "password2": "Str0ngPass!23"})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(User.objects.filter(username="newbie").exists())
+        self.assertEqual(c.get(reverse("board")).status_code, 200)  # logged in
+
+    def test_signup_rejects_mismatch(self):
+        c = Client()
+        c.post(reverse("signup"), {"username": "x", "password1": "abc12345!", "password2": "different9!"})
+        self.assertFalse(User.objects.filter(username="x").exists())
+
+
+class GoalIconAndSharing(TestCase):
+    """Feature catalog #10: goal icon + мои/общие (shared)."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_icon_and_shared_saved(self):
+        self.client.post(reverse("goal_create"),
+                         {"title": "G", "goal_type": "PRIVATE", "status": "ACTIVE",
+                          "icon": "🎯", "shared": "on"})
+        g = Goal.objects.get(title="G")
+        self.assertEqual(g.icon, "🎯")
+        self.assertTrue(g.shared)
+
+    def test_shared_scope_filters(self):
+        Goal.objects.create(owner=self.user, title="Mine", goal_type="PRIVATE", status=Goal.Status.ACTIVE)
+        Goal.objects.create(owner=self.user, title="Common", goal_type="PRIVATE",
+                            status=Goal.Status.ACTIVE, shared=True)
+        r = self.client.get(reverse("goal_list") + "?scope=shared")
+        self.assertContains(r, "Common")
+        self.assertNotContains(r, "Mine")
+
+
 class Search(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("u", password="p")

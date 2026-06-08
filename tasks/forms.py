@@ -69,7 +69,8 @@ class TaskForm(forms.ModelForm):
 class GoalForm(forms.ModelForm):
     class Meta:
         model = Goal
-        fields = ["title", "description", "goal_type", "status", "start_period", "end_period"]
+        fields = ["title", "description", "goal_type", "status", "icon", "shared",
+                  "start_period", "end_period"]
         widgets = {
             "title": forms.TextInput(attrs={
                 "class": "w-full border border-line rounded-md px-3 py-2 text-sm",
@@ -83,11 +84,16 @@ class GoalForm(forms.ModelForm):
             "status": forms.Select(attrs={"class": "border border-line rounded-md px-2 py-1.5 text-sm"}),
             "start_period": forms.DateInput(attrs={"type": "date", "class": "border border-line rounded-md px-2 py-1.5 text-sm"}, format="%Y-%m-%d"),
             "end_period": forms.DateInput(attrs={"type": "date", "class": "border border-line rounded-md px-2 py-1.5 text-sm"}, format="%Y-%m-%d"),
+            "icon": forms.TextInput(attrs={
+                "class": "border border-line rounded-md px-2 py-1.5 text-sm w-24",
+                "placeholder": "🎯 или URL",
+            }),
+            "shared": forms.CheckboxInput(attrs={"class": "rounded border-line"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for f in ("description", "start_period", "end_period"):
+        for f in ("description", "icon", "start_period", "end_period"):
             self.fields[f].required = False
         self.fields["start_period"].input_formats = ["%Y-%m-%d"]
         self.fields["end_period"].input_formats = ["%Y-%m-%d"]

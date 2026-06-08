@@ -8,6 +8,8 @@
   <div>{{ form.title }}{% if form.title.errors %}<div class="text-xs text-red-600 mt-1">{{ form.title.errors.0 }}</div>{% endif %}</div>
   <div class="flex flex-wrap gap-2 text-xs items-center"><label class="text-ink-muted w-16">Тип</label>{{ form.goal_type }}</div>
   <div class="flex flex-wrap gap-2 text-xs items-center"><label class="text-ink-muted w-16">Статус</label>{{ form.status }}</div>
+  <div class="flex flex-wrap gap-2 text-xs items-center"><label class="text-ink-muted w-16">Иконка</label>{{ form.icon }}</div>
+  <label class="flex items-center gap-2 text-xs text-ink-muted">{{ form.shared }} <span>Общая цель</span></label>
   <div class="flex flex-wrap gap-2 text-xs items-center"><label class="text-ink-muted w-16">Начало</label>{{ form.start_period }}</div>
   <div class="flex flex-wrap gap-2 text-xs items-center"><label class="text-ink-muted w-16">Конец</label>{{ form.end_period }}</div>
   <div>{{ form.description }}</div>

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="min-h-screen grid place-items-center">
+  <form method="post" class="bg-surface border border-line rounded-lg p-6 w-[320px]">
+    {% csrf_token %}
+    <div class="flex items-center gap-2 mb-5">
+      <div class="w-8 h-8 rounded-md bg-accent text-white grid place-items-center font-medium">M</div>
+      <span class="text-lg font-medium">Регистрация</span>
+    </div>
+    {% if form.errors %}
+    <div class="text-xs text-red-600 mb-3">{{ form.errors.values|join:" " }}</div>
+    {% endif %}
+    <div class="space-y-3">
+      <input name="username" placeholder="Имя пользователя" value="{{ form.username.value|default:'' }}"
+             class="w-full border border-line rounded-md px-3 py-2 text-sm">
+      <input name="password1" type="password" placeholder="Пароль"
+             class="w-full border border-line rounded-md px-3 py-2 text-sm">
+      <input name="password2" type="password" placeholder="Пароль ещё раз"
+             class="w-full border border-line rounded-md px-3 py-2 text-sm">
+      <button class="btn-accent w-full">Создать аккаунт</button>
+    </div>
+    <div class="text-xs text-ink-faint text-center mt-3">
+      Уже есть аккаунт? <a href="{% url 'login' %}" class="text-accent hover:underline">Войти</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
