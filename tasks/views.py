@@ -39,9 +39,9 @@ def _visible_tasks(user):
 
 
 def _horizon_counts(user):
-    """BR-2: visible root-level tasks per horizon."""
+    """BR-2 + BR-11: visible root-level tasks per horizon (counted by due_date)."""
     tasks = _visible_tasks(user).filter(parent__isnull=True)
-    return {key: tasks.filter(task_type=val).count() for key, (_, val) in HORIZON_LABELS.items()}
+    return {key: services.horizon_filter(tasks, key).count() for key in HORIZON_LABELS}
 
 
 def _board_tasks(request):
@@ -79,18 +79,18 @@ def _grouped(tasks, group_by):
 
 
 def _board_context(request, horizon="TODAY"):
-    label, value = HORIZON_LABELS.get(horizon, HORIZON_LABELS["TODAY"])
+    label, _ = HORIZON_LABELS.get(horizon, HORIZON_LABELS["TODAY"])
     sort = request.session.get("sort", "priority")
     order = SORT_ORDERS.get(sort, SORT_ORDERS["priority"])
     group_by = request.session.get("group_by", "none")
-    tasks = _board_tasks(request).filter(task_type=value).order_by(*order)
+    # BR-7/BR-8: the horizon list is built by filtering on due_date, not task_type.
+    tasks = services.horizon_filter(_board_tasks(request), horizon).order_by(*order)
     return {
         "tasks": tasks,
         "groups": _grouped(tasks, group_by),
         "group_by": group_by,
         "sort": sort,
         "horizon": horizon,
-        "horizon_value": value,
         "horizon_label": label,
         "horizon_nav": HORIZON_NAV,
         "counts": _horizon_counts(request.user),
@@ -98,6 +98,9 @@ def _board_context(request, horizon="TODAY"):
         "contexts": Context.objects.filter(owner=request.user, archived=False),
         "show_hidden": bool(request.session.get("show_hidden")),
         "quick_add": bool(request.session.get("quick_add")),
+        # BR-11: on HTMX swaps, refresh the sidebar counters out-of-band. Suppressed on
+        # the full-page render (board.html embeds _task_list, where OOB spans would be inert clutter).
+        "oob_counts": bool(request.headers.get("HX-Request")),
     }
 
 
@@ -119,8 +122,9 @@ def task_detail(request, task_id):
 
 @login_required
 def task_new(request):
+    # BR-9: a new task has no due_date by default → it lands in INBOX (not TODAY).
     # BR-15: prefill from the last-used goal/context/is_project (task preferences).
-    initial = {"task_type": Task.Horizon.TODAY}
+    initial = {}
     if request.session.get("pref_goal"):
         initial["goal"] = request.session["pref_goal"]
     if request.session.get("pref_context"):
@@ -139,6 +143,11 @@ def task_create(request):
         task = form.save(commit=False)
         task.owner = request.user
         task.priority = services.next_priority(request.user)
+        # BR-10: quick-add from a horizon column dates the task into that column,
+        # unless the user already gave it a due_date.
+        set_h = request.POST.get("set_horizon")
+        if set_h and not task.due_date:
+            task.due_date = services.due_for_horizon(set_h)
         services.apply_hidden_state(task)
         task.save()
         # BR-15: remember this task's goal/context/is_project for the next new task.
@@ -182,7 +191,9 @@ def task_delete(request, task_id):
 def toggle_done(request, task_id):
     task = get_object_or_404(Task, id=task_id, owner=request.user)
     services.set_done(task, not task.done)
-    return render(request, "tasks/_task_row.html", {"task": task})
+    # BR-11: completing/uncompleting changes the horizon counters → refresh them OOB.
+    return render(request, "tasks/_task_row_swap.html",
+                  {"task": task, "counts": _horizon_counts(request.user)})
 
 
 @login_required
@@ -217,13 +228,13 @@ def check_item_delete(request, item_id):
 @login_required
 @require_http_methods(["POST"])
 def subtask_add(request, task_id):
-    """BR-7: add a child task; it inherits the parent's horizon and owner."""
+    """BR-7: add a child task; it inherits the parent's horizon (via due_date) and owner."""
     parent = get_object_or_404(Task, id=task_id, owner=request.user)
     title = (request.POST.get("title") or "").strip()
     if title:
         Task.objects.create(
             owner=request.user, title=title, parent=parent,
-            task_type=parent.task_type, priority=services.next_priority(request.user),
+            due_date=parent.due_date, priority=services.next_priority(request.user),
         )
     return render(request, "tasks/_subtasks.html", {"task": parent})
 

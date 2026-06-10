@@ -54,11 +54,12 @@ class TaskCrud(TestCase):
         from tasks.forms import TaskForm
         self.assertNotIn("start_date", TaskForm(user=self.user).fields)
 
-    def test_move_horizon(self):  # feature catalog #1
-        t = Task.objects.create(owner=self.user, title="m", task_type=Task.Horizon.TODAY)
+    def test_move_horizon(self):  # feature catalog #1 / BR-10: move re-dates the task
+        from tasks import services
+        t = Task.objects.create(owner=self.user, title="m", due_date=timezone.now())
         self.client.post(reverse("task_move", args=[t.id, "LATER"]))
         t.refresh_from_db()
-        self.assertEqual(t.task_type, Task.Horizon.LATER)
+        self.assertEqual(services.horizon_for(t.due_date), Task.Horizon.LATER)
 
     def test_delete(self):
         t = Task.objects.create(owner=self.user, title="d", task_type=Task.Horizon.TODAY)
@@ -120,18 +121,21 @@ class Subtasks(TestCase):
         self.client.login(username="u", password="p")
 
     def test_add_subtask_inherits_parent(self):
-        parent = Task.objects.create(owner=self.user, title="P", task_type=Task.Horizon.LATER)
+        from tasks import services
+        due = timezone.now() + timedelta(days=30)  # LATER
+        parent = Task.objects.create(owner=self.user, title="P", due_date=due)
         r = self.client.post(reverse("subtask_add", args=[parent.id]), {"title": "child"})
         self.assertEqual(r.status_code, 200)
         child = Task.objects.get(title="child")
         self.assertEqual(child.parent_id, parent.id)
         self.assertEqual(child.owner, self.user)
-        self.assertEqual(child.task_type, Task.Horizon.LATER)
+        self.assertEqual(child.due_date, parent.due_date)
+        self.assertEqual(services.horizon_for(child.due_date), Task.Horizon.LATER)
         self.assertGreater(child.priority, 0.0)
 
     def test_board_lists_root_only(self):
-        parent = Task.objects.create(owner=self.user, title="ParentRoot", task_type=Task.Horizon.TODAY)
-        Task.objects.create(owner=self.user, title="ChildHidden", parent=parent, task_type=Task.Horizon.TODAY)
+        parent = Task.objects.create(owner=self.user, title="ParentRoot", due_date=timezone.now())
+        Task.objects.create(owner=self.user, title="ChildHidden", parent=parent, due_date=timezone.now())
         r = self.client.get(reverse("board") + "?h=TODAY")
         self.assertContains(r, "ParentRoot")
         self.assertNotContains(r, "ChildHidden")
@@ -187,7 +191,7 @@ class Projects(TestCase):
         self.assertFalse(t.is_project)
 
     def test_project_marked_in_list(self):
-        Task.objects.create(owner=self.user, title="ProjRow", task_type=Task.Horizon.TODAY, is_project=True)
+        Task.objects.create(owner=self.user, title="ProjRow", due_date=timezone.now(), is_project=True)
         r = self.client.get(reverse("board") + "?h=TODAY")
         self.assertContains(r, "проект")
 
@@ -237,7 +241,7 @@ class Archive(TestCase):
         self.client.login(username="u", password="p")
 
     def test_archive_task_removes_from_board(self):
-        t = Task.objects.create(owner=self.user, title="ArcMe", task_type=Task.Horizon.TODAY)
+        t = Task.objects.create(owner=self.user, title="ArcMe", due_date=timezone.now())
         self.client.post(reverse("task_archive", args=[t.id]))
         t.refresh_from_db()
         self.assertTrue(t.archived)
@@ -293,13 +297,16 @@ class TaskCopy(TestCase):
         self.client.login(username="u", password="p")
 
     def test_copy_duplicates_with_checklist(self):
-        t = Task.objects.create(owner=self.user, title="Orig", task_type=Task.Horizon.WEEK)
+        from tasks import services
+        due = timezone.now() + timedelta(days=30)  # LATER
+        t = Task.objects.create(owner=self.user, title="Orig", due_date=due)
         t.checklist.create(title="step1", sort_order=0)
         t.checklist.create(title="step2", sort_order=1, done=True)
         self.client.post(reverse("task_copy", args=[t.id]))
         copy = Task.objects.exclude(id=t.id).get(owner=self.user)
         self.assertTrue(copy.title.startswith("Orig"))
-        self.assertEqual(copy.task_type, Task.Horizon.WEEK)
+        self.assertEqual(copy.due_date, t.due_date)
+        self.assertEqual(services.horizon_for(copy.due_date), Task.Horizon.LATER)
         self.assertEqual(copy.checklist.count(), 2)
         self.assertNotEqual(copy.id, t.id)
 
@@ -320,15 +327,12 @@ class Sorting(TestCase):
         self.client.login(username="u", password="p")
 
     def test_sort_by_due_orders_ascending(self):
-        now = timezone.now()
-        Task.objects.create(owner=self.user, title="Late", task_type=Task.Horizon.TODAY,
-                            due_date=now + timedelta(days=9))
-        Task.objects.create(owner=self.user, title="Soon", task_type=Task.Horizon.TODAY,
-                            due_date=now + timedelta(days=1))
-        Task.objects.create(owner=self.user, title="Mid", task_type=Task.Horizon.TODAY,
-                            due_date=now + timedelta(days=5))
+        now = timezone.now()  # all far-future -> same horizon (LATER), distinct due dates
+        Task.objects.create(owner=self.user, title="Late", due_date=now + timedelta(days=50))
+        Task.objects.create(owner=self.user, title="Soon", due_date=now + timedelta(days=30))
+        Task.objects.create(owner=self.user, title="Mid", due_date=now + timedelta(days=40))
         self.client.post(reverse("set_sort"), {"sort": "due"})
-        html = self.client.get(reverse("board") + "?h=TODAY").content.decode()
+        html = self.client.get(reverse("board") + "?h=LATER").content.decode()
         self.assertLess(html.index("Soon"), html.index("Mid"))
         self.assertLess(html.index("Mid"), html.index("Late"))
 
@@ -354,9 +358,13 @@ class QuickAdd(TestCase):
         self.assertContains(r, "Быстро добавить")
 
     def test_quick_add_creates_task_in_current_horizon(self):
-        self.client.post(reverse("task_create") + "?h=WEEK",
-                         {"title": "Quick", "task_type": Task.Horizon.WEEK})
-        self.assertEqual(Task.objects.get(title="Quick").task_type, Task.Horizon.WEEK)
+        from tasks import services
+        # quick-add posts set_horizon; the task is dated into that column (BR-10)
+        self.client.post(reverse("task_create") + "?h=LATER",
+                         {"title": "Quick", "set_horizon": "LATER"})
+        t = Task.objects.get(title="Quick")
+        self.assertIsNotNone(t.due_date)
+        self.assertEqual(services.horizon_for(t.due_date), Task.Horizon.LATER)
 
 
 class TaskPreferences(TestCase):
@@ -390,7 +398,7 @@ class GoalPause(TestCase):
         self.client.login(username="u", password="p")
         self.goal = Goal.objects.create(owner=self.user, title="G", goal_type="PRIVATE",
                                         status=Goal.Status.ACTIVE)
-        Task.objects.create(owner=self.user, title="GoalTask", task_type=Task.Horizon.TODAY, goal=self.goal)
+        Task.objects.create(owner=self.user, title="GoalTask", due_date=timezone.now(), goal=self.goal)
 
     def test_active_goal_tasks_visible(self):
         r = self.client.get(reverse("board") + "?h=TODAY")
@@ -427,8 +435,8 @@ class Categories(TestCase):
 
     def test_group_by_goal_renders_headers(self):
         g = Goal.objects.create(owner=self.user, title="MyGoal", goal_type="PRIVATE", status=Goal.Status.ACTIVE)
-        Task.objects.create(owner=self.user, title="WithGoal", task_type=Task.Horizon.TODAY, goal=g)
-        Task.objects.create(owner=self.user, title="NoGoal", task_type=Task.Horizon.TODAY)
+        Task.objects.create(owner=self.user, title="WithGoal", due_date=timezone.now(), goal=g)
+        Task.objects.create(owner=self.user, title="NoGoal", due_date=timezone.now())
         self.client.post(reverse("set_group"), {"group_by": "goal"})
         r = self.client.get(reverse("board") + "?h=TODAY")
         self.assertContains(r, "MyGoal")
@@ -439,6 +447,34 @@ class Categories(TestCase):
     def test_invalid_group_ignored(self):
         self.client.post(reverse("set_group"), {"group_by": "bogus"})
         self.assertNotEqual(self.client.session.get("group_by"), "bogus")
+
+
+class HorizonCounters(TestCase):
+    """BR-11: sidebar counters refresh out-of-band on mutating HTMX responses."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def _hx(self, method, url, data=None):
+        return getattr(self.client, method)(url, data or {}, HTTP_HX_REQUEST="true")
+
+    def test_create_emits_oob_count(self):
+        r = self._hx("post", reverse("task_create") + "?h=TODAY",
+                     {"title": "T", "set_horizon": "TODAY"})
+        self.assertContains(r, 'id="count-TODAY"')
+        self.assertContains(r, 'hx-swap-oob="true"')
+
+    def test_full_page_has_no_oob_spans(self):
+        # non-HX board render must NOT contain inert OOB spans inside the list
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertNotContains(r, 'hx-swap-oob')
+
+    def test_toggle_done_refreshes_counts(self):
+        t = Task.objects.create(owner=self.user, title="D", due_date=timezone.now())
+        r = self._hx("post", reverse("toggle_done", args=[t.id]))
+        self.assertContains(r, 'id="count-TODAY"')
+        self.assertContains(r, 'hx-swap-oob="true"')
 
 
 class Completed(TestCase):
@@ -464,7 +500,7 @@ class ShowHidden(TestCase):
         self.client = Client()
         self.client.login(username="u", password="p")
         self.hidden = Task.objects.create(
-            owner=self.user, title="HiddenOne", task_type=Task.Horizon.TODAY,
+            owner=self.user, title="HiddenOne", due_date=timezone.now(),
             state=Task.State.HIDDEN, hide_until_date=timezone.now() + timedelta(days=3))
 
     def test_hidden_excluded_by_default(self):

@@ -41,14 +41,17 @@ class VisibilityRules(TestCase):
         from tasks.views import _visible_tasks
         self.assertEqual(_visible_tasks(self.user).count(), 1)
 
-    def test_horizon_counts(self):  # BR-2
-        Task.objects.create(owner=self.user, title="a", task_type=Task.Horizon.TODAY)
-        Task.objects.create(owner=self.user, title="b", task_type=Task.Horizon.TODAY)
-        Task.objects.create(owner=self.user, title="c", task_type=Task.Horizon.WEEK)
+    def test_horizon_counts(self):  # BR-2 / BR-8: counts derive from due_date, not a stored type
+        now = timezone.now()
+        Task.objects.create(owner=self.user, title="a", due_date=now)                   # TODAY
+        Task.objects.create(owner=self.user, title="b", due_date=now)                   # TODAY
+        Task.objects.create(owner=self.user, title="c", due_date=now + timedelta(days=30))  # LATER
+        Task.objects.create(owner=self.user, title="d")                                 # no due -> INBOX
         from tasks.views import _horizon_counts
         counts = _horizon_counts(self.user)
         self.assertEqual(counts["TODAY"], 2)
-        self.assertEqual(counts["WEEK"], 1)
+        self.assertEqual(counts["LATER"], 1)
+        self.assertEqual(counts["INBOX"], 1)
 
 
 class OwnerIsolation(TestCase):

@@ -1,3 +1,4 @@
+{% if oob_counts %}{% include "tasks/_counts_oob.html" %}{% endif %}
 <div class="flex items-center justify-between mb-3">
   <h3 class="text-lg font-medium m-0">{{ horizon_label }}</h3>
   <span class="text-xs text-ink-faint">{{ tasks|length }} задач</span>
@@ -29,7 +30,7 @@
 <form hx-post="{% url 'task_create' %}?h={{ horizon }}" hx-target="#task-list"
       class="flex items-center gap-2 mb-3 pb-2 border-b border-line" @submit="$nextTick(()=>$el.reset())">
   <span class="text-accent text-sm">+</span>
-  <input type="hidden" name="task_type" value="{{ horizon_value }}">
+  <input type="hidden" name="set_horizon" value="{{ horizon }}">
   <input name="title" placeholder="Быстро добавить задачу…" autocomplete="off"
          class="flex-1 text-sm border-0 focus:outline-none bg-transparent py-1">
 </form>

@@ -70,6 +70,9 @@ class Task(TimeStamped):
 
     title = models.CharField(max_length=500)
     note = models.TextField(blank=True)
+    # Milestone 2 (BR-7/BR-8): horizon is DERIVED from due_date, not an independent
+    # choice. This field is kept for schema compatibility/import and is auto-synced
+    # in save(); lists/counts filter on due_date, never on this field.
     task_type = models.IntegerField(choices=Horizon.choices, default=Horizon.INBOX)
     state = models.IntegerField(choices=State.choices, default=State.ACTIVE)
     priority = models.FloatField(default=0.0)  # fractional rank for drag-and-drop
@@ -95,6 +98,20 @@ class Task(TimeStamped):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        # BR-7/BR-8: keep the stored task_type consistent with due_date so any
+        # reader (admin, import, debugging) sees the right horizon. It is a
+        # denormalized hint, NOT the source of truth — queries derive on the fly.
+        from . import services
+        self.task_type = services.horizon_for(self.due_date)
+        super().save(*args, **kwargs)
+
+    @property
+    def horizon(self):
+        """BR-7: the live horizon, derived from due_date (not the stored field)."""
+        from . import services
+        return services.horizon_for(self.due_date)
 
     def visible_children(self):
         """BR-1/BR-7: child subtasks that pass the visibility filter."""

@@ -17,6 +17,68 @@ def visible_qs(qs):
         state=Task.State.HIDDEN, hide_until_date__gt=now)
 
 
+# ---- Horizon as a function of due_date (Milestone 2: BR-7..BR-11) ----
+# The planning horizon (INBOX/TODAY/WEEK/LATER) is NOT a stored choice; it is
+# derived from `due_date` and "now", and lists are built by filtering on
+# `due_date` at query time. This gives automatic midnight-correctness (a task
+# dated "tomorrow" falls into TODAY on its own after midnight) with no cron.
+
+def _today_eod():
+    """End of today in the user's server time (getTodayEOD-equivalent)."""
+    local = timezone.localtime(timezone.now())
+    return local.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+
+def _week_eod():
+    """End of the current week (Sunday EOD)."""
+    local = timezone.localtime(timezone.now())
+    days_until_sunday = 6 - local.weekday()  # Mon=0 .. Sun=6
+    return (local + timedelta(days=days_until_sunday)).replace(
+        hour=23, minute=59, second=59, microsecond=999999)
+
+
+def horizon_for(due_date):
+    """BR-7: map a due_date to its horizon (from APK calculateTaskType).
+
+    None → INBOX; due today or overdue → TODAY; within this week → WEEK; later → LATER.
+    """
+    if due_date is None:
+        return Task.Horizon.INBOX
+    if due_date <= _today_eod():
+        return Task.Horizon.TODAY
+    if due_date <= _week_eod():
+        return Task.Horizon.WEEK
+    return Task.Horizon.LATER
+
+
+def horizon_filter(qs, horizon_key):
+    """BR-8: restrict a queryset to a horizon by filtering on due_date (no cron, no stored type)."""
+    if horizon_key == "INBOX":
+        return qs.filter(due_date__isnull=True)
+    if horizon_key == "TODAY":
+        return qs.filter(due_date__isnull=False, due_date__lte=_today_eod())
+    if horizon_key == "WEEK":
+        return qs.filter(due_date__gt=_today_eod(), due_date__lte=_week_eod())
+    if horizon_key == "LATER":
+        return qs.filter(due_date__gt=_week_eod())
+    return qs
+
+
+def due_for_horizon(horizon_key):
+    """BR-10: a due_date that lands a task in the target horizon (used by move + quick-add).
+
+    INBOX clears the date; the others pick a moment inside the horizon's range so
+    that horizon_for() of the result equals horizon_key.
+    """
+    if horizon_key == "TODAY":
+        return _today_eod()
+    if horizon_key == "WEEK":
+        return _week_eod()
+    if horizon_key == "LATER":
+        return _week_eod() + timedelta(days=1)
+    return None  # INBOX
+
+
 def set_done(task: Task, done: bool) -> Task:
     """BR-3: завершение задачи проставляет/снимает completion_date."""
     task.done = done
@@ -66,13 +128,14 @@ def create_goal_from_template(template, owner, start_date):
     )
     milestone_tasks = {}
     for ms in template.milestones.all():
+        # milestone = container project task; horizon derives from its (relative) due date
         milestone_tasks[ms.id] = Task.objects.create(
-            owner=owner, title=ms.title, task_type=Task.Horizon.LATER,
-            is_project=True, goal=goal, priority=next_priority(owner),
+            owner=owner, title=ms.title, is_project=True, goal=goal,
+            priority=next_priority(owner),
         )
     for tt in template.task_templates.all():
         Task.objects.create(
-            owner=owner, title=tt.title, task_type=Task.Horizon.LATER, goal=goal,
+            owner=owner, title=tt.title, goal=goal,
             parent=milestone_tasks.get(tt.milestone_id),
             due_date=start_date + timedelta(days=tt.offset_days),
             priority=next_priority(owner),
@@ -141,17 +204,21 @@ def validate_rrule(rule: str) -> bool:
 
 
 def move_task(task: Task, horizon_key: str) -> Task:
-    """Feature catalog #1 + BR-7: move between horizons, carrying the whole subtree."""
+    """Feature catalog #1 + BR-10: move between horizons by setting due_date.
+
+    The horizon is derived from due_date (BR-7), so moving means re-dating the task;
+    the whole subtree is carried along to the same date.
+    """
     if horizon_key in HORIZON_BY_KEY:
-        _set_type_recursive(task, HORIZON_BY_KEY[horizon_key])
+        _set_due_recursive(task, due_for_horizon(horizon_key))
     return task
 
 
-def _set_type_recursive(task: Task, target: int) -> None:
-    task.task_type = target
-    task.save(update_fields=["task_type", "modified"])
+def _set_due_recursive(task: Task, due) -> None:
+    task.due_date = due
+    task.save(update_fields=["due_date", "task_type", "modified"])  # save() re-derives task_type
     for child in task.children.all():
-        _set_type_recursive(child, target)
+        _set_due_recursive(child, due)
 
 
 def copy_task(task: Task) -> Task:

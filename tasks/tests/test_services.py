@@ -2,8 +2,10 @@
 Тесты сервисного слоя, выведенные из spec/02_rules.md.
 BR-3 (completion_date) и BR-4 (priority).
 """
+from datetime import timedelta
 from django.test import TestCase
 from django.contrib.auth.models import User
+from django.utils import timezone
 from tasks.models import Task
 from tasks import services
 
@@ -64,16 +66,17 @@ class PriorityRule(TestCase):
 
 
 class SubtreeMove(TestCase):
-    """BR-7: moving a task moves its whole subtree (recursively)."""
+    """BR-10: moving a task re-dates its whole subtree into the target horizon."""
 
     def setUp(self):
         self.user = User.objects.create_user("u", password="p")
 
     def test_move_propagates_to_descendants(self):
-        root = Task.objects.create(owner=self.user, title="root", task_type=Task.Horizon.TODAY)
-        child = Task.objects.create(owner=self.user, title="child", parent=root, task_type=Task.Horizon.TODAY)
-        grand = Task.objects.create(owner=self.user, title="grand", parent=child, task_type=Task.Horizon.TODAY)
+        now = timezone.now()
+        root = Task.objects.create(owner=self.user, title="root", due_date=now)
+        child = Task.objects.create(owner=self.user, title="child", parent=root, due_date=now)
+        grand = Task.objects.create(owner=self.user, title="grand", parent=child, due_date=now)
         services.move_task(root, "LATER")
         for t in (root, child, grand):
             t.refresh_from_db()
-            self.assertEqual(t.task_type, Task.Horizon.LATER, t.title)
+            self.assertEqual(services.horizon_for(t.due_date), Task.Horizon.LATER, t.title)

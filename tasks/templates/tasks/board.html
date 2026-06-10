@@ -23,7 +23,7 @@
         <a href="?h={{ key }}" hx-get="?h={{ key }}" hx-target="#task-list" hx-push-url="true"
            class="nav-item {% if horizon == key %}nav-item-active{% endif %}">
           <span class="flex-1">{{ label }}</span>
-          <span class="text-xs text-ink-faint">{{ counts|dict_get:key }}</span></a>
+          <span id="count-{{ key }}" class="text-xs text-ink-faint">{{ counts|dict_get:key }}</span></a>
         {% endfor %}
       </nav>
 
