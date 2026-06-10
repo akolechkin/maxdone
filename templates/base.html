@@ -8,8 +8,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
 
-  {# Tailwind Play CDN — приложение стилизуется сразу, без шага сборки.
-     Для продакшена замени на собранный static/css/app.css (см. README). #}
+  {% comment %}
+  Tailwind Play CDN — приложение стилизуется сразу, без шага сборки.
+  Для продакшена замени на собранный static/css/app.css (см. README).
+  {% endcomment %}
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -37,6 +39,14 @@
     .nav-item-active{background:#F7F6F1;color:#2C2C2A}
     .chip{font-size:11px;padding:.125rem .5rem;border-radius:8px}
     [x-cloak]{display:none!important}
+    /* WebKit renders native <select>/<input type=date> at the system control size and
+       ignores font-size unless appearance is reset — that made these boxes oversized.
+       Reset appearance so the text-sm sizing on the widgets applies, and restore a
+       chevron on selects (appearance:none removes the native arrow). */
+    select,input[type="date"],input[type="datetime-local"]{-webkit-appearance:none;appearance:none}
+    select{background-color:#fff;padding-right:1.75rem;background-repeat:no-repeat;
+      background-position:right .5rem center;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 20 20' fill='none' stroke='%235F5E5A' stroke-width='1.5'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E")}
   </style>
 
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
