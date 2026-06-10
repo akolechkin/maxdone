@@ -4,7 +4,8 @@
 Логика живёт здесь (не во вьюхах), чтобы быть тестируемой и единообразной.
 """
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
+from dateutil.rrule import rrulestr
 from django.db.models import Max
 from django.utils import timezone
 from .models import Task, Goal
@@ -80,10 +81,15 @@ def due_for_horizon(horizon_key):
 
 
 def set_done(task: Task, done: bool) -> Task:
-    """BR-3: завершение задачи проставляет/снимает completion_date."""
+    """BR-3: завершение задачи проставляет/снимает completion_date.
+
+    BR-5: завершение повторяющейся задачи порождает следующий экземпляр серии.
+    """
     task.done = done
     task.completion_date = timezone.now() if done else None
     task.save(update_fields=["done", "completion_date", "modified"])
+    if done and task.recur_rule:
+        spawn_next_occurrence(task)
     return task
 
 
@@ -201,6 +207,79 @@ def validate_rrule(rule: str) -> bool:
         else:
             return False  # unknown key
     return True
+
+
+def _rrule_parts(rule_str: str) -> dict:
+    """Parse an RRULE string into an uppercase-keyed dict (the picker emits this subset)."""
+    parts = {}
+    for chunk in rule_str.split(";"):
+        key, _, value = chunk.partition("=")
+        parts[key.strip().upper()] = value.strip()
+    return parts
+
+
+def _parse_until(value: str):
+    """RRULE UNTIL → aware datetime (YYYYMMDD or YYYYMMDDThhmmssZ); None if unparsable."""
+    value = value.strip().upper()
+    fmt = "%Y%m%dT%H%M%SZ" if "T" in value else "%Y%m%d"
+    try:
+        dt = datetime.strptime(value, fmt)
+    except ValueError:
+        return None
+    return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+
+
+def spawn_next_occurrence(task: Task) -> "Task | None":
+    """BR-5: completing a recurring task creates the next occurrence of the series.
+
+    Returns the new Task, or None if the task isn't recurring or the series has
+    ended (COUNT exhausted / next date past UNTIL). The completed task stays done;
+    the spawned occurrence is a fresh active task dated to the next RRULE date,
+    linked to the series root via recur_parent_id (series + exceptions, from APK).
+    """
+    rule_str = (task.recur_rule or "").strip()
+    if not rule_str:
+        return None
+    parts = _rrule_parts(rule_str)
+
+    # COUNT termination: COUNT counts the occurrences remaining including this one,
+    # so COUNT<=1 means the just-completed task was the last.
+    count = parts.get("COUNT")
+    if count is not None and count.isdigit() and int(count) <= 1:
+        return None
+
+    anchor = task.due_date or task.completion_date or timezone.now()
+    # COUNT/UNTIL are handled here, so drop them from the rule used to find the date.
+    raw = ";".join(f"{k}={v}" for k, v in parts.items() if k not in ("COUNT", "UNTIL"))
+    try:
+        next_due = rrulestr("RRULE:" + raw, dtstart=anchor).after(anchor, inc=False)
+    except (ValueError, TypeError):
+        return None
+    if next_due is None:
+        return None
+
+    until = parts.get("UNTIL")
+    if until:
+        until_dt = _parse_until(until)
+        if until_dt and next_due > until_dt:
+            return None
+
+    child_parts = dict(parts)
+    if count is not None and count.isdigit():
+        child_parts["COUNT"] = str(int(count) - 1)
+    child_rule = ";".join(f"{k}={v}" for k, v in child_parts.items())
+
+    series_root = task.recur_parent_id or task.id
+    child = Task.objects.create(
+        owner=task.owner, title=task.title, note=task.note,
+        priority=next_priority(task.owner), is_project=task.is_project,
+        goal=task.goal, context=task.context, parent=task.parent,
+        due_date=next_due, recur_rule=child_rule, recur_parent_id=series_root,
+    )
+    # the new occurrence gets a fresh (unchecked) copy of the checklist
+    for item in task.checklist.all():
+        child.checklist.create(title=item.title, sort_order=item.sort_order)
+    return child
 
 
 def move_task(task: Task, horizon_key: str) -> Task:

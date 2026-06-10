@@ -51,7 +51,7 @@
   MONTHLY_BY_NTH_DAY_OF_WEEK), YEARLY.
 - 🔲 **Признак повторяющейся** `TaskUtils.isTaskRecuring`; серия через
   `recur_parent_id`, пропущенные даты `recur_exclude_dates`.
-- 🔲 Генерация следующего экземпляра при завершении (BR-5 — пока не реализовано).
+- ✅ Генерация следующего экземпляра при завершении (BR-5, `services.spawn_next_occurrence`).
 
 ## 6. Приоритет / сортировка
 - ✅ Дробный ранг (`calcNewPriority`, `getMaxTaskPriority`).
