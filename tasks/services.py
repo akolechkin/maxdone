@@ -18,7 +18,7 @@ def visible_qs(qs):
         state=Task.State.HIDDEN, hide_until_date__gt=now)
 
 
-# ---- Horizon as a function of due_date (Milestone 2: BR-7..BR-11) ----
+# ---- Horizon as a function of due_date (Milestone 2: BR-19..BR-23) ----
 # The planning horizon (INBOX/TODAY/WEEK/LATER) is NOT a stored choice; it is
 # derived from `due_date` and "now", and lists are built by filtering on
 # `due_date` at query time. This gives automatic midnight-correctness (a task
@@ -39,7 +39,7 @@ def _week_eod():
 
 
 def horizon_for(due_date):
-    """BR-7: map a due_date to its horizon (from APK calculateTaskType).
+    """BR-19: map a due_date to its horizon (from APK calculateTaskType).
 
     None → INBOX; due today or overdue → TODAY; within this week → WEEK; later → LATER.
     """
@@ -53,7 +53,7 @@ def horizon_for(due_date):
 
 
 def horizon_filter(qs, horizon_key):
-    """BR-8: restrict a queryset to a horizon by filtering on due_date (no cron, no stored type)."""
+    """BR-20: restrict a queryset to a horizon by filtering on due_date (no cron, no stored type)."""
     if horizon_key == "INBOX":
         return qs.filter(due_date__isnull=True)
     if horizon_key == "TODAY":
@@ -66,7 +66,7 @@ def horizon_filter(qs, horizon_key):
 
 
 def due_for_horizon(horizon_key):
-    """BR-10: a due_date that lands a task in the target horizon (used by move + quick-add).
+    """BR-22: a due_date that lands a task in the target horizon (used by move + quick-add).
 
     INBOX clears the date; the others pick a moment inside the horizon's range so
     that horizon_for() of the result equals horizon_key.
@@ -283,9 +283,9 @@ def spawn_next_occurrence(task: Task) -> "Task | None":
 
 
 def move_task(task: Task, horizon_key: str) -> Task:
-    """Feature catalog #1 + BR-10: move between horizons by setting due_date.
+    """Feature catalog #1 + BR-22: move between horizons by setting due_date.
 
-    The horizon is derived from due_date (BR-7), so moving means re-dating the task;
+    The horizon is derived from due_date (BR-19), so moving means re-dating the task;
     the whole subtree is carried along to the same date.
     """
     if horizon_key in HORIZON_BY_KEY:
