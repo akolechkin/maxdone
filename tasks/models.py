@@ -78,6 +78,7 @@ class Task(TimeStamped):
     priority = models.FloatField(default=0.0)  # fractional rank for drag-and-drop
     done = models.BooleanField(default=False)
     is_project = models.BooleanField(default=False)
+    from_template = models.BooleanField(default=False)  # BLOCKED_BY_GOAL_TEMPLATE: locked from edits
 
     goal = models.ForeignKey(Goal, null=True, blank=True, on_delete=models.SET_NULL, related_name="tasks")
     context = models.ForeignKey(Context, null=True, blank=True, on_delete=models.SET_NULL, related_name="tasks")

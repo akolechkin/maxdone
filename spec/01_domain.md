@@ -66,6 +66,7 @@
 - `priority` — Float, default 0.0  (дробный ранг для drag-and-drop)
 - `done` — Boolean, default False
 - `is_project` — Boolean, default False
+- `from_template` — Boolean, default False  (BLOCKED_BY_GOAL_TEMPLATE: задача из шаблона цели, заблокирована от редактирования)
 - `goal` — FK Goal, nullable, SET_NULL, related_name="tasks"
 - `context` — FK Context, nullable, SET_NULL, related_name="tasks"
 - `parent` — FK self, nullable, CASCADE, related_name="children"

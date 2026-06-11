@@ -140,17 +140,18 @@ def create_goal_from_template(template, owner, start_date):
     )
     milestone_tasks = {}
     for ms in template.milestones.all():
-        # milestone = container project task; horizon derives from its (relative) due date
+        # milestone = container project task; horizon derives from its (relative) due date.
+        # from_template locks it from free editing (BLOCKED_BY_GOAL_TEMPLATE).
         milestone_tasks[ms.id] = Task.objects.create(
             owner=owner, title=ms.title, is_project=True, goal=goal,
-            priority=next_priority(owner),
+            from_template=True, priority=next_priority(owner),
         )
     for tt in template.task_templates.all():
         Task.objects.create(
             owner=owner, title=tt.title, goal=goal,
             parent=milestone_tasks.get(tt.milestone_id),
             due_date=start_date + timedelta(days=tt.offset_days),
-            priority=next_priority(owner),
+            from_template=True, priority=next_priority(owner),
         )
     return goal
 

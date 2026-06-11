@@ -145,7 +145,9 @@ def board(request):
 def task_detail(request, task_id):
     task = get_object_or_404(Task, id=task_id, owner=request.user)
     form = TaskForm(instance=task, user=request.user)
-    return render(request, "tasks/_task_editor.html", {"task": task, "form": form})
+    # BLOCKED_BY_GOAL_TEMPLATE: tasks created from a goal template are read-only.
+    return render(request, "tasks/_task_editor.html",
+                  {"task": task, "form": form, "locked": task.from_template})
 
 
 @login_required
@@ -193,6 +195,8 @@ def task_create(request):
 @require_http_methods(["POST"])
 def task_update(request, task_id):
     task = get_object_or_404(Task, id=task_id, owner=request.user)
+    if task.from_template:  # BLOCKED_BY_GOAL_TEMPLATE: template-derived tasks can't be edited
+        return HttpResponse(status=403)
     form = TaskForm(request.POST, instance=task, user=request.user)
     if form.is_valid():
         task = form.save(commit=False)

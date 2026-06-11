@@ -672,3 +672,39 @@ class RecurGroup(TestCase):
         self.inst.delete()  # leave just one overdue instance in the series
         r = self.client.get(reverse("board") + "?h=TODAY")
         self.assertNotContains(r, "просрочено")
+
+
+class TemplateLock(TestCase):
+    """BLOCKED_BY_GOAL_TEMPLATE: tasks created from a goal template are read-only."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_create_from_template_marks_locked(self):
+        tpl = GoalTemplate.objects.create(owner=self.user, title="T", published=True)
+        m = MilestoneTemplate.objects.create(template=tpl, title="M", sort_order=0)
+        TaskTemplate.objects.create(template=tpl, milestone=m, title="Step", offset_days=0)
+        self.client.post(reverse("template_create_goal", args=[tpl.id]), {"start_date": "2026-07-01"})
+        self.assertTrue(Task.objects.get(title="M", owner=self.user).from_template)
+        self.assertTrue(Task.objects.get(title="Step", owner=self.user).from_template)
+
+    def test_update_blocked(self):
+        t = Task.objects.create(owner=self.user, title="L", from_template=True, due_date=timezone.now())
+        r = self.client.post(reverse("task_update", args=[t.id]), {"title": "changed"})
+        self.assertEqual(r.status_code, 403)
+        t.refresh_from_db()
+        self.assertEqual(t.title, "L")
+
+    def test_editor_shows_lock_and_hides_save(self):
+        t = Task.objects.create(owner=self.user, title="L", from_template=True, due_date=timezone.now())
+        r = self.client.get(reverse("task_detail", args=[t.id]))
+        self.assertContains(r, "заблокировано")
+        self.assertNotContains(r, "Сохранить")
+
+    def test_normal_task_still_editable(self):
+        t = Task.objects.create(owner=self.user, title="N", due_date=timezone.now())
+        r = self.client.post(reverse("task_update", args=[t.id]), {"title": "renamed"})
+        self.assertEqual(r.status_code, 200)
+        t.refresh_from_db()
+        self.assertEqual(t.title, "renamed")
