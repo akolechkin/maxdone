@@ -31,5 +31,24 @@ services:
       db:
         condition: service_healthy
 
+  # BR-5 catch-up: materialize overdue recurring occurrences once a day.
+  # Lightweight sleep-loop (no Celery/system cron needed); shares the web image.
+  recur-cron:
+    build: .
+    command: >
+      sh -c "while true; do
+               python manage.py materialize_recurrences || true;
+               sleep 86400;
+             done"
+    volumes:
+      - .:/app
+    environment:
+      DJANGO_DEBUG: "1"
+      DATABASE_URL: postgres://maxdone:maxdone@db:5432/maxdone
+      DJANGO_SECRET_KEY: dev-insecure-change-me
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:
