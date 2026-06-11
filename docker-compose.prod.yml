@@ -1,0 +1,81 @@
+# Production stack — SEPARATE from the dev setup. Does not touch docker-compose.yml
+# or the dev Dockerfile. Run with an explicit env file, e.g.:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+# Required env (see .env.prod.example): DOMAIN, EMAIL, DJANGO_SECRET_KEY, POSTGRES_PASSWORD.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-maxdone}
+      POSTGRES_USER: ${POSTGRES_USER:-maxdone}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-maxdone}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    build: .                      # reuses the existing Dockerfile (gunicorn is in requirements.txt)
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --access-logfile -"
+    expose:
+      - "8000"                    # internal only; nginx is the public entrypoint
+    volumes:
+      - static:/app/staticfiles   # collectstatic output, shared read-only with nginx
+      - media:/app/media          # user uploads, shared read-only with nginx
+    environment:
+      DJANGO_DEBUG: "0"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY in .env.prod}
+      DJANGO_ALLOWED_HOSTS: ${DOMAIN:?set DOMAIN in .env.prod}
+      DJANGO_CSRF_TRUSTED_ORIGINS: https://${DOMAIN}
+      DATABASE_URL: postgres://${POSTGRES_USER:-maxdone}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-maxdone}
+      # Opt-in once HTTPS is confirmed working:
+      DJANGO_SSL_REDIRECT: ${DJANGO_SSL_REDIRECT:-0}
+      DJANGO_HSTS_SECONDS: ${DJANGO_HSTS_SECONDS:-0}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env.prod}
+    volumes:
+      - ./nginx/app.conf.template:/etc/nginx/templates/app.conf.template:ro
+      - static:/var/www/static:ro
+      - media:/var/www/media:ro
+      - certbot-www:/var/www/certbot:ro      # ACME webroot challenge files
+      - certbot-conf:/etc/letsencrypt:ro      # issued certs
+    # Default nginx entrypoint still runs envsubst on the template (DOMAIN), then execs this:
+    # serve in foreground + reload every 6h to pick up renewed certs.
+    command: sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot-www:/var/www/certbot
+      - certbot-conf:/etc/letsencrypt
+    # Renewal loop. Issuance is a one-off documented in DEPLOY.md (uses --entrypoint certbot).
+    entrypoint: sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  static:
+  media:
+  certbot-www:
+  certbot-conf:
