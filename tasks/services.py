@@ -229,13 +229,52 @@ def _parse_until(value: str):
     return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
 
 
-def spawn_next_occurrence(task: Task) -> "Task | None":
-    """BR-5: completing a recurring task creates the next occurrence of the series.
+# A recurring series is a chain of Task rows that share a "series id" — the id of
+# the first occurrence. Children carry recur_parent_id = series id (the first row's
+# recur_parent_id is blank). The series root row also holds the EXDATE set (skipped
+# dates) in recur_exclude_dates, so catch-up never regenerates a deleted occurrence.
 
-    Returns the new Task, or None if the task isn't recurring or the series has
-    ended (COUNT exhausted / next date past UNTIL). The completed task stays done;
-    the spawned occurrence is a fresh active task dated to the next RRULE date,
-    linked to the series root via recur_parent_id (series + exceptions, from APK).
+def _series_id(task: Task) -> str:
+    return task.recur_parent_id or task.id
+
+
+def _series_root(task: Task):
+    return Task.objects.filter(id=_series_id(task)).first()
+
+
+def _date_key(dt) -> str:
+    return timezone.localtime(dt).strftime("%Y-%m-%d") if dt else ""
+
+
+def _exclude_set(root) -> set:
+    if not root or not root.recur_exclude_dates:
+        return set()
+    return {d for d in root.recur_exclude_dates.split(",") if d}
+
+
+def exclude_occurrence(task: Task) -> None:
+    """BR-5 (EXDATE): record a deleted/skipped recurring occurrence's date on the
+    series root so catch-up materialization never regenerates it."""
+    if not (task.recur_rule or task.recur_parent_id) or not task.due_date:
+        return
+    root = _series_root(task)
+    if root is None or root.id == task.id:
+        return  # deleting the root itself: no stable place to store; series ends here
+    excl = _exclude_set(root)
+    excl.add(_date_key(task.due_date))
+    root.recur_exclude_dates = ",".join(sorted(excl))
+    root.save(update_fields=["recur_exclude_dates", "modified"])
+
+
+def spawn_next_occurrence(task: Task, now=None, only_past: bool = False) -> "Task | None":
+    """BR-5: create the next occurrence of a recurring series.
+
+    Returns the new Task, or None if the task isn't recurring, the series has ended
+    (COUNT exhausted / next date past UNTIL), the next occurrence already exists
+    (idempotent), or — when only_past=True (catch-up) — the next date is in the future.
+    The spawned occurrence is a fresh active task dated to the next RRULE date (skipping
+    EXDATE), linked to the series root via recur_parent_id. Used both on completion and
+    by catch-up materialization.
     """
     rule_str = (task.recur_rule or "").strip()
     if not rule_str:
@@ -243,18 +282,25 @@ def spawn_next_occurrence(task: Task) -> "Task | None":
     parts = _rrule_parts(rule_str)
 
     # COUNT termination: COUNT counts the occurrences remaining including this one,
-    # so COUNT<=1 means the just-completed task was the last.
+    # so COUNT<=1 means this was the last.
     count = parts.get("COUNT")
     if count is not None and count.isdigit() and int(count) <= 1:
         return None
 
+    series_id = _series_id(task)
+    exclude = _exclude_set(_series_root(task))
     anchor = task.due_date or task.completion_date or timezone.now()
-    # COUNT/UNTIL are handled here, so drop them from the rule used to find the date.
+    # COUNT/UNTIL handled here, so drop them from the rule used to find the date.
     raw = ";".join(f"{k}={v}" for k, v in parts.items() if k not in ("COUNT", "UNTIL"))
     try:
-        next_due = rrulestr("RRULE:" + raw, dtstart=anchor).after(anchor, inc=False)
+        rule = rrulestr("RRULE:" + raw, dtstart=anchor)
     except (ValueError, TypeError):
         return None
+    next_due = rule.after(anchor, inc=False)
+    guard = 0
+    while next_due is not None and _date_key(next_due) in exclude and guard < 1000:
+        next_due = rule.after(next_due, inc=False)
+        guard += 1
     if next_due is None:
         return None
 
@@ -264,22 +310,58 @@ def spawn_next_occurrence(task: Task) -> "Task | None":
         if until_dt and next_due > until_dt:
             return None
 
+    if only_past and now is not None and next_due > now:
+        return None
+
+    # idempotent: don't duplicate an occurrence the series already has at this date
+    if Task.objects.filter(recur_parent_id=series_id, due_date=next_due).exists():
+        return None
+
     child_parts = dict(parts)
     if count is not None and count.isdigit():
         child_parts["COUNT"] = str(int(count) - 1)
     child_rule = ";".join(f"{k}={v}" for k, v in child_parts.items())
 
-    series_root = task.recur_parent_id or task.id
     child = Task.objects.create(
         owner=task.owner, title=task.title, note=task.note,
         priority=next_priority(task.owner), is_project=task.is_project,
         goal=task.goal, context=task.context, parent=task.parent,
-        due_date=next_due, recur_rule=child_rule, recur_parent_id=series_root,
+        due_date=next_due, recur_rule=child_rule, recur_parent_id=series_id,
     )
     # the new occurrence gets a fresh (unchecked) copy of the checklist
     for item in task.checklist.all():
         child.checklist.create(title=item.title, sort_order=item.sort_order)
     return child
+
+
+def materialize_due_recurrences(now=None) -> int:
+    """BR-5 (catch-up): generate the overdue occurrences that piled up while the user
+    was away. For each recurring series, walk its frontier (latest-dated occurrence)
+    forward, creating every occurrence whose due_date is already past — but NOT the
+    first future one (that appears on completion). Returns the number created.
+
+    Meant to be run periodically (cron / Celery-beat) — this is record materialization,
+    not a horizon view computation, so a scheduler is appropriate here (unlike BR-8).
+    """
+    now = now or timezone.now()
+    # frontier per series = the occurrence with the greatest due_date
+    frontiers = {}
+    for t in Task.objects.filter(archived=False, due_date__isnull=False).exclude(recur_rule=""):
+        sid = _series_id(t)
+        cur = frontiers.get(sid)
+        if cur is None or t.due_date > cur.due_date:
+            frontiers[sid] = t
+
+    created = 0
+    for frontier in frontiers.values():
+        cur = frontier
+        while True:
+            child = spawn_next_occurrence(cur, now=now, only_past=True)
+            if child is None:
+                break
+            created += 1
+            cur = child
+    return created
 
 
 def move_task(task: Task, horizon_key: str) -> Task:

@@ -181,6 +181,7 @@ def task_update(request, task_id):
 @require_http_methods(["POST", "DELETE"])
 def task_delete(request, task_id):
     task = get_object_or_404(Task, id=task_id, owner=request.user)
+    services.exclude_occurrence(task)  # BR-5: skip this date in future catch-up if recurring
     task.delete()
     ctx = _board_context(request, request.GET.get("h", "TODAY"))
     return render(request, "tasks/_task_list.html", ctx)

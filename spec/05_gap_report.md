@@ -88,3 +88,9 @@ BR-7..BR-11 (см. spec/06_milestone2.md). Исправляет наблюден
 **BR-5 генерация повторов — выполнено (2026-06-10):** завершение повторяющейся
 задачи порождает следующий экземпляр (`services.spawn_next_occurrence` через
 `python-dateutil`); серия через `recur_parent_id`, окончание по COUNT/UNTIL.
+
+**BR-5 catch-up + EXDATE — выполнено (2026-06-11):** `materialize_due_recurrences`
+(+ команда `materialize_recurrences` для cron) материализует пропущенные прошлые
+вхождения; удаление вхождения пишет EXDATE на корень серии (`exclude_occurrence`),
+catch-up его пропускает; генерация идемпотентна. Визуальная группировка (spec/06 B)
+— НЕ реализована (отложено).

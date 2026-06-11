@@ -163,6 +163,78 @@ class RecurrenceGeneration(TestCase):
         self.assertFalse(child.checklist.first().done)
 
 
+class RecurrenceExclude(TestCase):
+    """BR-5 EXDATE: deleted occurrences are recorded on the series root and skipped."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+
+    def test_delete_records_exclude_on_root(self):
+        now = timezone.now().replace(microsecond=0)
+        root = Task.objects.create(owner=self.user, title="R", due_date=now, recur_rule="FREQ=DAILY")
+        child = services.spawn_next_occurrence(root)  # tomorrow
+        self.assertIsNotNone(child)
+        services.exclude_occurrence(child)
+        root.refresh_from_db()
+        self.assertIn(services._date_key(child.due_date), root.recur_exclude_dates)
+
+    def test_spawn_skips_excluded_date(self):
+        now = timezone.now().replace(microsecond=0)
+        root = Task.objects.create(owner=self.user, title="R", due_date=now, recur_rule="FREQ=DAILY")
+        root.recur_exclude_dates = services._date_key(now + timedelta(days=1))  # exclude tomorrow
+        root.save(update_fields=["recur_exclude_dates"])
+        child = services.spawn_next_occurrence(root)
+        self.assertEqual(services._date_key(child.due_date),
+                         services._date_key(now + timedelta(days=2)))  # jumped over tomorrow
+
+
+class RecurrenceCatchUp(TestCase):
+    """BR-5 catch-up: overdue occurrences materialize; future ones don't."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+
+    def test_materialize_creates_overdue_chain(self):
+        now = timezone.now().replace(microsecond=0)
+        Task.objects.create(owner=self.user, title="R",
+                            due_date=now - timedelta(days=3), recur_rule="FREQ=DAILY")
+        created = services.materialize_due_recurrences(now=now)
+        self.assertEqual(created, 3)  # -2d, -1d, today
+        self.assertEqual(Task.objects.filter(owner=self.user).count(), 4)
+        self.assertFalse(Task.objects.filter(owner=self.user, due_date__gt=now).exists())
+
+    def test_no_future_materialization(self):
+        now = timezone.now().replace(microsecond=0)
+        Task.objects.create(owner=self.user, title="R", due_date=now, recur_rule="FREQ=DAILY")
+        self.assertEqual(services.materialize_due_recurrences(now=now), 0)
+
+    def test_materialize_respects_exclude(self):
+        now = timezone.now().replace(microsecond=0)
+        root = Task.objects.create(owner=self.user, title="R",
+                                   due_date=now - timedelta(days=3), recur_rule="FREQ=DAILY")
+        root.recur_exclude_dates = services._date_key(now - timedelta(days=2))
+        root.save(update_fields=["recur_exclude_dates"])
+        services.materialize_due_recurrences(now=now)
+        keys = {services._date_key(t.due_date) for t in Task.objects.filter(owner=self.user)}
+        self.assertNotIn(services._date_key(now - timedelta(days=2)), keys)
+
+    def test_materialize_is_idempotent(self):
+        now = timezone.now().replace(microsecond=0)
+        Task.objects.create(owner=self.user, title="R",
+                            due_date=now - timedelta(days=2), recur_rule="FREQ=DAILY")
+        services.materialize_due_recurrences(now=now)
+        n1 = Task.objects.filter(owner=self.user).count()
+        services.materialize_due_recurrences(now=now)  # second run adds nothing
+        self.assertEqual(Task.objects.filter(owner=self.user).count(), n1)
+
+    def test_management_command_runs(self):
+        from io import StringIO
+        from django.core.management import call_command
+        Task.objects.create(owner=self.user, title="R",
+                            due_date=timezone.now() - timedelta(days=2), recur_rule="FREQ=DAILY")
+        out = StringIO()
+        call_command("materialize_recurrences", stdout=out)
+        self.assertIn("Materialized", out.getvalue())
+
+
 def _count_in(rule):
     for chunk in rule.split(";"):
         k, _, v = chunk.partition("=")
