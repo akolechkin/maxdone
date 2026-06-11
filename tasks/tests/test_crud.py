@@ -54,7 +54,7 @@ class TaskCrud(TestCase):
         from tasks.forms import TaskForm
         self.assertNotIn("start_date", TaskForm(user=self.user).fields)
 
-    def test_move_horizon(self):  # feature catalog #1 / BR-22: move re-dates the task
+    def test_move_horizon(self):  # feature catalog #1 / BR-10: move re-dates the task
         from tasks import services
         t = Task.objects.create(owner=self.user, title="m", due_date=timezone.now())
         self.client.post(reverse("task_move", args=[t.id, "LATER"]))
@@ -359,7 +359,7 @@ class QuickAdd(TestCase):
 
     def test_quick_add_creates_task_in_current_horizon(self):
         from tasks import services
-        # quick-add posts set_horizon; the task is dated into that column (BR-22)
+        # quick-add posts set_horizon; the task is dated into that column (BR-10)
         self.client.post(reverse("task_create") + "?h=LATER",
                          {"title": "Quick", "set_horizon": "LATER"})
         t = Task.objects.get(title="Quick")
@@ -450,7 +450,7 @@ class Categories(TestCase):
 
 
 class HorizonCounters(TestCase):
-    """BR-23: sidebar counters refresh out-of-band on mutating HTMX responses."""
+    """BR-11: sidebar counters refresh out-of-band on mutating HTMX responses."""
     def setUp(self):
         self.user = User.objects.create_user("u", password="p")
         self.client = Client()

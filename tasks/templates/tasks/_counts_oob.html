@@ -1,2 +1,2 @@
-{% comment %}BR-23: out-of-band refresh of the sidebar horizon counters on every mutating HTMX response.{% endcomment %}
+{% comment %}BR-11: out-of-band refresh of the sidebar horizon counters on every mutating HTMX response.{% endcomment %}
 {% for key, n in counts.items %}<span id="count-{{ key }}" hx-swap-oob="true" class="text-xs text-ink-faint">{{ n }}</span>{% endfor %}

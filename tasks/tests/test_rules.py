@@ -41,7 +41,7 @@ class VisibilityRules(TestCase):
         from tasks.views import _visible_tasks
         self.assertEqual(_visible_tasks(self.user).count(), 1)
 
-    def test_horizon_counts(self):  # BR-2 / BR-20: counts derive from due_date, not a stored type
+    def test_horizon_counts(self):  # BR-2 / BR-8: counts derive from due_date, not a stored type
         now = timezone.now()
         Task.objects.create(owner=self.user, title="a", due_date=now)                   # TODAY
         Task.objects.create(owner=self.user, title="b", due_date=now)                   # TODAY

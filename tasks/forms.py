@@ -10,7 +10,7 @@ class TaskForm(forms.ModelForm):
         model = Task
         # gap #1: start_date dropped from the editing flow; due_date is the single
         # primary date (date picker), hide_until_date is a separate "hide until" control.
-        # Milestone 2 (BR-19/BR-21): task_type is NOT in the form — the horizon follows
+        # Milestone 2 (BR-7/BR-9): task_type is NOT in the form — the horizon follows
         # from due_date, so the user never picks it (a dateless task lands in INBOX).
         fields = [
             "title", "note", "goal", "context",

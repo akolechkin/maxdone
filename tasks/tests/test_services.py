@@ -66,7 +66,7 @@ class PriorityRule(TestCase):
 
 
 class SubtreeMove(TestCase):
-    """BR-22: moving a task re-dates its whole subtree into the target horizon."""
+    """BR-10: moving a task re-dates its whole subtree into the target horizon."""
 
     def setUp(self):
         self.user = User.objects.create_user("u", password="p")

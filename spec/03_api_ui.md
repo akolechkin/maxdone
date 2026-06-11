@@ -12,7 +12,7 @@
 | `/task/<id>/toggle/`          | toggle_done       | POST: переключить done (фрагмент)    |
 | `/check/<id>/toggle/`         | toggle_check_item | POST: переключить пункт чек-листа    |
 | `/task/<id>/subtask/add/`     | subtask_add       | POST: добавить подзадачу (BR-7)      |
-| `/task/<id>/move/<horizon>/`  | task_move         | POST: due_date→горизонт (BR-22; поддерево BR-7) |
+| `/task/<id>/move/<horizon>/`  | task_move         | POST: due_date→горизонт (BR-10; поддерево BR-7) |
 | `/task/<id>/archive/`         | task_archive      | POST: в архив (+поддерево, BR-9)     |
 | `/task/<id>/unarchive/`       | task_unarchive    | POST: восстановить из архива         |
 | `/goals/<id>/archive/`        | goal_archive      | POST: цель в архив (BR-9)            |
@@ -83,10 +83,10 @@
 
 ## Форма задачи и горизонты — Milestone 2 (см. spec/06_milestone2.md)
 - Выбор горизонта (`task_type`) УБРАН из формы — горизонт следует из `due_date`
-  (BR-19/BR-21). Поля формы: title, due_date (date picker + очистка), hide_until_date
+  (BR-7/BR-9). Поля формы: title, due_date (date picker + очистка), hide_until_date
   («скрыть до»), recur (recurrence picker → recur_rule), goal, context, note, is_project.
 - Перемещение по горизонтам (`task_move`) и быстрое добавление меняют `due_date`,
-  а не `task_type` (BR-22). Быстрое добавление датирует задачу в просматриваемую колонку.
+  а не `task_type` (BR-10). Быстрое добавление датирует задачу в просматриваемую колонку.
 - Счётчики горизонтов в сайдбаре обновляются out-of-band (`_counts_oob.html`,
   `id="count-<KEY>"` + `hx-swap-oob`) на КАЖДОМ мутирующем HTMX-ответе, включая
-  завершение задачи; на полной (не-HTMX) странице OOB-спаны подавлены (BR-23).
+  завершение задачи; на полной (не-HTMX) странице OOB-спаны подавлены (BR-11).
