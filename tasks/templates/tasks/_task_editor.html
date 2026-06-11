@@ -17,7 +17,7 @@
   <button @click="editorOpen=false" class="text-ink-muted text-lg leading-none">&times;</button>
 </div>
 
-<form hx-post="{{ post_url }}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list" class="space-y-3">
+<form hx-post="{{ post_url }}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list" class="form-spaced">
   <div>{{ form.title }}
     {% if form.title.errors %}<div class="text-xs text-red-600 mt-1">{{ form.title.errors.0 }}</div>{% endif %}</div>
 
@@ -50,7 +50,7 @@
       <div x-show="open" x-cloak @keydown.escape.window="open=false"
            class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" style="display:none">
         <div @click.outside="open=false"
-             class="bg-surface rounded-lg w-full max-w-sm p-4 space-y-3 text-xs max-h-[90vh] overflow-y-auto">
+             class="bg-surface rounded-lg w-full max-w-sm p-4 form-spaced text-xs max-h-[90vh] overflow-y-auto">
           <div class="flex items-center justify-between">
             <span class="text-sm">Повтор</span>
             <button type="button" @click="open=false" class="text-ink-muted text-lg leading-none">&times;</button>
@@ -60,7 +60,7 @@
             <input type="checkbox" x-model="enabled"> <span>повторять</span>
           </label>
 
-          <div x-show="enabled" class="space-y-3">
+          <div x-show="enabled" class="form-spaced">
             <div class="flex items-center gap-2">
               <span class="text-ink-muted">каждые</span>
               <input type="number" min="1" x-model.number="interval"
