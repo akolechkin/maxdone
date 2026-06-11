@@ -1,23 +1,6 @@
-# Rendered by the nginx image's envsubst at startup: ${DOMAIN} is replaced from env.
-# nginx runtime variables ($host, $uri, ...) are NOT env vars, so they pass through intact.
+# Appended only once /etc/letsencrypt/live/${DOMAIN}/fullchain.pem exists, so nginx
+# never fails to start on a missing cert. Reverse-proxies to gunicorn; serves static/media.
 
-# ---- HTTP :80 — ACME challenge + redirect everything else to HTTPS ----
-server {
-    listen 80;
-    listen [::]:80;
-    server_name ${DOMAIN};
-
-    # Let's Encrypt webroot challenge (must stay on plain HTTP).
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-# ---- HTTPS :443 — reverse proxy to gunicorn, serve static/media ----
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
@@ -33,7 +16,7 @@ server {
 
     client_max_body_size 10m;
 
-    # Keep the challenge reachable here too (harmless; helps renewals over HTTPS-only clients).
+    # Keep the challenge reachable here too (harmless; helps HTTPS-only renewals).
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }

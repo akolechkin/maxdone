@@ -1,0 +1,18 @@
+# Always loaded. Serves the Let's Encrypt ACME challenge and redirects everything
+# else to HTTPS. Has NO cert reference, so nginx boots even before any cert exists.
+# ${DOMAIN} is substituted at container start; nginx runtime vars ($host, ...) pass through.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    # Let's Encrypt webroot challenge — must stay on plain HTTP and return the file.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}

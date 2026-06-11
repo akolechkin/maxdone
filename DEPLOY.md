@@ -34,20 +34,22 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d db web
 
 `web` runs `migrate` + `collectstatic` automatically on start.
 
-## 3. Bootstrap a temporary cert so nginx can boot
+## 3. Start nginx (HTTP-only — serves the ACME challenge)
 
-nginx's HTTPS server references cert files that don't exist yet. Create a throwaway
-self-signed cert so nginx starts and can serve the ACME challenge:
+nginx renders its own config: it always loads the HTTP block (port 80 + ACME challenge)
+and only adds the HTTPS (443) block once a cert exists — so it boots fine with **no cert
+yet** and can answer Let's Encrypt's challenge. No dummy cert needed.
 
 ```bash
-DOMAIN=$(grep -E '^DOMAIN=' .env.prod | cut -d= -f2)
-docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm --entrypoint sh certbot -c "\
-  mkdir -p /etc/letsencrypt/live/$DOMAIN && \
-  openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
-    -keyout /etc/letsencrypt/live/$DOMAIN/privkey.pem \
-    -out   /etc/letsencrypt/live/$DOMAIN/fullchain.pem -subj /CN=$DOMAIN"
-
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d nginx
+```
+
+Sanity check the challenge path is served (should be `404` from *our* server, not the
+stock welcome page — a 404 here is fine, it just means no challenge file exists yet):
+
+```bash
+curl -i http://maxxdone.autocentral.cl/.well-known/acme-challenge/ping
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec nginx nginx -T | grep acme-challenge
 ```
 
 ## 4. Issue the real cert — **staging first** (avoid rate limits)
@@ -76,11 +78,12 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm \
   --entrypoint certbot certbot certonly --webroot -w /var/www/certbot \
   -d "$DOMAIN" --email "$EMAIL" --agree-tos --no-eff-email
 
-# reload nginx to pick up the real cert
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec nginx nginx -s reload
+# restart nginx so it re-renders its config and enables the HTTPS (443) block
+docker compose -f docker-compose.prod.yml --env-file .env.prod restart nginx
 ```
 
-Visit `https://$DOMAIN` — it should be valid and proxy to the app.
+Visit `https://$DOMAIN` — it should be valid and proxy to the app. (Once the 443 block
+is active, future renewals only need the 6h `nginx -s reload`, not a restart.)
 
 > Add `www.` (or other hosts) by repeating with extra `-d www.$DOMAIN` flags **and**
 > adding them to `DOMAIN`/`server_name` handling as needed.

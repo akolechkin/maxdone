@@ -52,14 +52,28 @@ services:
     environment:
       DOMAIN: ${DOMAIN:?set DOMAIN in .env.prod}
     volumes:
-      - ./nginx/app.conf.template:/etc/nginx/templates/app.conf.template:ro
+      - ./nginx/http.conf.template:/etc/nginx/templates/http.conf.template:ro
+      - ./nginx/https.conf.template:/etc/nginx/templates/https.conf.template:ro
       - static:/var/www/static:ro
       - media:/var/www/media:ro
       - certbot-www:/var/www/certbot:ro      # ACME webroot challenge files
       - certbot-conf:/etc/letsencrypt:ro      # issued certs
-    # Default nginx entrypoint still runs envsubst on the template (DOMAIN), then execs this:
-    # serve in foreground + reload every 6h to pick up renewed certs.
-    command: sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
+    # Render the config ourselves: the nginx image only auto-runs envsubst when the
+    # command starts with "nginx", which our reload loop is not. We always load the
+    # HTTP block (so the ACME challenge works with no cert yet), and append the HTTPS
+    # block only once the cert exists — then reload every 6h to pick up renewals.
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        envsubst '$$DOMAIN' < /etc/nginx/templates/http.conf.template > /etc/nginx/conf.d/default.conf
+        if [ -f "/etc/letsencrypt/live/$$DOMAIN/fullchain.pem" ]; then
+          envsubst '$$DOMAIN' < /etc/nginx/templates/https.conf.template >> /etc/nginx/conf.d/default.conf
+        fi
+        nginx -t
+        while :; do sleep 6h & wait $${!}; nginx -s reload; done &
+        nginx -g 'daemon off;'
     depends_on:
       - web
     restart: unless-stopped
