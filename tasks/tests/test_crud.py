@@ -708,3 +708,21 @@ class TemplateLock(TestCase):
         self.assertEqual(r.status_code, 200)
         t.refresh_from_db()
         self.assertEqual(t.title, "renamed")
+
+
+class EditorActionIcons(TestCase):
+    """Editor header shows duplicate/archive/delete/close as icon buttons (wired to the
+    existing task_copy/task_archive/task_delete endpoints)."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_editor_renders_action_icons(self):
+        t = Task.objects.create(owner=self.user, title="E", due_date=timezone.now())
+        r = self.client.get(reverse("task_detail", args=[t.id]))
+        for title in ("Дублировать", "В архив", "Удалить", "Закрыть"):
+            self.assertContains(r, 'title="%s"' % title)
+        self.assertContains(r, "<svg")
+        self.assertContains(r, reverse("task_copy", args=[t.id]))
+        self.assertContains(r, reverse("task_archive", args=[t.id]))

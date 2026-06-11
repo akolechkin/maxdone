@@ -3,18 +3,45 @@
 {% else %}
   {% url 'task_create' as post_url %}
 {% endif %}
-<div class="flex items-center gap-2.5 mb-3.5">
+<div class="flex items-center gap-1.5 mb-3.5">
   <span class="text-xs text-ink-faint flex-1">{% if task %}Редактирование{% else %}Новая задача{% endif %}</span>
   {% if task %}
-  <button hx-post="{% url 'task_copy' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
-          @click="editorOpen=false" class="text-ink-faint hover:text-ink text-sm">дублировать</button>
-  <button hx-post="{% url 'task_archive' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
-          @click="editorOpen=false" class="text-ink-faint hover:text-ink text-sm">в архив</button>
-  <button hx-post="{% url 'task_delete' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
+  {# duplicate (buildTaskCopy → task_copy) #}
+  <button type="button" title="Дублировать" aria-label="Дублировать"
+          hx-post="{% url 'task_copy' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
+          @click="editorOpen=false" class="text-ink-faint hover:text-ink p-1 leading-none">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="9" width="13" height="13" rx="2"/>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+  </button>
+  {# archive (set_archived → task_archive) — also closes the editor #}
+  <button type="button" title="В архив" aria-label="В архив"
+          hx-post="{% url 'task_archive' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
+          @click="editorOpen=false" class="text-ink-faint hover:text-ink p-1 leading-none">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/>
+      <line x1="10" y1="12" x2="14" y2="12"/></svg>
+  </button>
+  {# delete — confirm + red hover #}
+  <button type="button" title="Удалить" aria-label="Удалить"
+          hx-post="{% url 'task_delete' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
           hx-confirm="Удалить задачу навсегда?"
-          @click="editorOpen=false" class="text-ink-faint hover:text-ink text-sm">удалить</button>
+          @click="editorOpen=false" class="text-ink-faint hover:text-red-600 p-1 leading-none">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+  </button>
   {% endif %}
-  <button @click="editorOpen=false" class="text-ink-muted text-lg leading-none">&times;</button>
+  {# close #}
+  <button type="button" title="Закрыть" aria-label="Закрыть"
+          @click="editorOpen=false" class="text-ink-muted hover:text-ink p-1 leading-none">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
 </div>
 
 {% if locked %}
