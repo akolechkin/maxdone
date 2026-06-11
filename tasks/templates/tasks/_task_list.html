@@ -41,9 +41,21 @@
   {% for task in group_tasks %}{% include "tasks/_task_row.html" %}{% endfor %}
   {% endfor %}
 {% else %}
+  {% for g in recur_groups %}
+  <div class="flex items-center gap-2.5 py-2.5 border-b border-line">
+    <span class="text-amber-600 text-sm mt-0.5 shrink-0" title="просроченные повторы">↻</span>
+    <div class="flex-1 min-w-0 text-sm">{{ g.title }}
+      <span class="text-ink-faint">· ×{{ g.count }} просрочено</span></div>
+    <button hx-post="{% url 'recur_group_done' %}?h={{ horizon }}" hx-target="#task-list"
+            hx-vals='{"series": "{{ g.series_id }}"}'
+            class="text-xs text-ink-faint hover:text-teal-fg">отметить все</button>
+  </div>
+  {% endfor %}
+  <div id="task-rows"{% if sort == 'priority' and group_by == 'none' %} data-sortable data-reorder-url="{% url 'task_reorder' %}"{% endif %}>
   {% for task in tasks %}
     {% include "tasks/_task_row.html" %}
   {% empty %}
     <div class="text-sm text-ink-faint py-8 text-center">Здесь пока пусто</div>
   {% endfor %}
+  </div>
 {% endif %}

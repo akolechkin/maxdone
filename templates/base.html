@@ -46,6 +46,7 @@
 
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 </head>
 <body class="bg-surface-alt text-ink font-sans" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
   {% block content %}{% endblock %}
@@ -53,6 +54,34 @@
     document.body.addEventListener("taskSaved", () => {
       window.dispatchEvent(new CustomEvent("task-saved"));
     });
+
+    // Drag&drop reorder (spec/06 next-step): on drop, send the moved task + its
+    // neighbours so the server sets a fractional priority (services.priority_between).
+    function _csrf() { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ""; }
+    function initSortables() {
+      document.querySelectorAll("[data-sortable]:not([data-sortable-ready])").forEach((el) => {
+        el.setAttribute("data-sortable-ready", "1");
+        new Sortable(el, {
+          animation: 150,
+          onEnd: (e) => {
+            const row = e.item;
+            if (!row.id.startsWith("task-")) return;
+            const sib = (n) => (n && n.id && n.id.startsWith("task-") ? n.id.slice(5) : "");
+            fetch(el.dataset.reorderUrl, {
+              method: "POST",
+              headers: { "X-CSRFToken": _csrf(), "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                id: row.id.slice(5),
+                before: sib(row.previousElementSibling),
+                after: sib(row.nextElementSibling),
+              }),
+            });
+          },
+        });
+      });
+    }
+    document.addEventListener("DOMContentLoaded", initSortables);
+    document.body.addEventListener("htmx:afterSettle", initSortables);
 
     // Recurrence picker (gap #2): builds an RRULE string into a hidden recur_rule
     // field. Mirrors the original RecurrencePickerDialog. UI layer; the assembled

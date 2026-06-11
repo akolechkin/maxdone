@@ -612,3 +612,63 @@ class Search(TestCase):
         Task.objects.create(owner=self.user, title="купить молоко", task_type=Task.Horizon.TODAY)
         r = self.client.get(reverse("search") + "?q=молоко")
         self.assertContains(r, "молоко")
+
+
+class Reorder(TestCase):
+    """spec/06 next-step: drag&drop reorder sets fractional priority (BR-4)."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+
+    def test_reorder_between_neighbors(self):
+        a = Task.objects.create(owner=self.user, title="a", priority=1.0, due_date=timezone.now())
+        b = Task.objects.create(owner=self.user, title="b", priority=3.0, due_date=timezone.now())
+        c = Task.objects.create(owner=self.user, title="c", priority=9.0, due_date=timezone.now())
+        r = self.client.post(reverse("task_reorder"), {"id": c.id, "before": a.id, "after": b.id})
+        self.assertEqual(r.status_code, 204)
+        c.refresh_from_db()
+        self.assertEqual(c.priority, 2.0)  # midpoint of 1.0 and 3.0
+
+    def test_reorder_to_top(self):
+        a = Task.objects.create(owner=self.user, title="a", priority=5.0, due_date=timezone.now())
+        b = Task.objects.create(owner=self.user, title="b", priority=6.0, due_date=timezone.now())
+        self.client.post(reverse("task_reorder"), {"id": b.id, "before": "", "after": a.id})
+        b.refresh_from_db()
+        self.assertEqual(b.priority, 4.0)  # after.priority - 1.0
+
+    def test_reorder_owner_isolation(self):
+        other = User.objects.create_user("o", password="p")
+        t = Task.objects.create(owner=other, title="x", due_date=timezone.now())
+        r = self.client.post(reverse("task_reorder"), {"id": t.id, "before": "", "after": ""})
+        self.assertEqual(r.status_code, 404)
+
+
+class RecurGroup(TestCase):
+    """spec/06 B: collapse overdue recurring instances + mark-all."""
+    def setUp(self):
+        self.user = User.objects.create_user("u", password="p")
+        self.client = Client()
+        self.client.login(username="u", password="p")
+        now = timezone.now()
+        self.root = Task.objects.create(owner=self.user, title="Полить",
+                                        due_date=now - timedelta(days=3), recur_rule="FREQ=DAILY")
+        self.inst = Task.objects.create(owner=self.user, title="Полить",
+                                        due_date=now - timedelta(days=2), recur_rule="FREQ=DAILY",
+                                        recur_parent_id=self.root.id)
+
+    def test_overdue_series_is_collapsed(self):
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertContains(r, "просрочено")
+        self.assertContains(r, "отметить все")
+
+    def test_mark_all_completes_the_group(self):
+        self.client.post(reverse("recur_group_done") + "?h=TODAY", {"series": self.root.id})
+        self.root.refresh_from_db(); self.inst.refresh_from_db()
+        self.assertTrue(self.root.done)
+        self.assertTrue(self.inst.done)
+
+    def test_single_overdue_not_collapsed(self):
+        self.inst.delete()  # leave just one overdue instance in the series
+        r = self.client.get(reverse("board") + "?h=TODAY")
+        self.assertNotContains(r, "просрочено")

@@ -3,6 +3,7 @@ from django.contrib.auth import login as auth_login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -78,6 +79,28 @@ def _grouped(tasks, group_by):
     return list(groups.items())
 
 
+def _collapse_recurrences(tasks):
+    """spec/06 B: collapse >=2 overdue instances of one recurring series into a single
+    group row (count, "mark all"). Returns (recur_groups, singles). Lone overdue
+    instances stay normal rows. Visual only — no data change."""
+    sod = services._today_sod()
+    by_series, singles = {}, []
+    for t in tasks:
+        recurring = bool(t.recur_rule or t.recur_parent_id)
+        overdue = t.due_date is not None and t.due_date < sod
+        if recurring and overdue and not t.done:
+            by_series.setdefault(t.recur_parent_id or t.id, []).append(t)
+        else:
+            singles.append(t)
+    groups = []
+    for sid, items in by_series.items():
+        if len(items) >= 2:
+            groups.append({"series_id": sid, "title": items[0].title, "count": len(items)})
+        else:
+            singles.extend(items)
+    return groups, singles
+
+
 def _board_context(request, horizon="TODAY"):
     label, _ = HORIZON_LABELS.get(horizon, HORIZON_LABELS["TODAY"])
     sort = request.session.get("sort", "priority")
@@ -85,9 +108,14 @@ def _board_context(request, horizon="TODAY"):
     group_by = request.session.get("group_by", "none")
     # BR-7/BR-8: the horizon list is built by filtering on due_date, not task_type.
     tasks = services.horizon_filter(_board_tasks(request), horizon).order_by(*order)
+    groups = _grouped(tasks, group_by)
+    recur_groups = None
+    if group_by == "none":  # overdue-recurrence collapse only in the flat list
+        recur_groups, tasks = _collapse_recurrences(list(tasks))
     return {
         "tasks": tasks,
-        "groups": _grouped(tasks, group_by),
+        "groups": groups,
+        "recur_groups": recur_groups,
         "group_by": group_by,
         "sort": sort,
         "horizon": horizon,
@@ -246,6 +274,38 @@ def task_copy(request, task_id):
     """Feature catalog #7: duplicate the task (with checklist)."""
     task = get_object_or_404(Task, id=task_id, owner=request.user)
     services.copy_task(task)
+    ctx = _board_context(request, request.GET.get("h", "TODAY"))
+    resp = render(request, "tasks/_task_list.html", ctx)
+    resp["HX-Trigger"] = "taskSaved"
+    return resp
+
+
+@login_required
+@require_http_methods(["POST"])
+def task_reorder(request):
+    """spec/06 next-step: reorder within a list by fractional priority (BR-4).
+
+    Drag&drop sends the moved task id plus its new neighbours; only `priority`
+    changes — the horizon stays derived from due_date (BR-7).
+    """
+    task = get_object_or_404(Task, id=request.POST.get("id", ""), owner=request.user)
+    before = Task.objects.filter(id=request.POST.get("before") or "", owner=request.user).first()
+    after = Task.objects.filter(id=request.POST.get("after") or "", owner=request.user).first()
+    task.priority = services.priority_between(before, after)
+    task.save(update_fields=["priority", "modified"])
+    return HttpResponse(status=204)
+
+
+@login_required
+@require_http_methods(["POST"])
+def recur_group_done(request):
+    """spec/06 B: "mark all" — complete every overdue instance of a recurring series."""
+    sid = request.POST.get("series", "")
+    sod = services._today_sod()
+    qs = (Task.objects.filter(owner=request.user, done=False, archived=False, due_date__lt=sod)
+          .filter(Q(id=sid) | Q(recur_parent_id=sid)))
+    for t in list(qs):
+        services.set_done(t, True)
     ctx = _board_context(request, request.GET.get("h", "TODAY"))
     resp = render(request, "tasks/_task_list.html", ctx)
     resp["HX-Trigger"] = "taskSaved"

@@ -21,6 +21,8 @@ urlpatterns = [
     # tasks
     path("task/new/", views.task_new, name="task_new"),
     path("task/create/", views.task_create, name="task_create"),
+    path("task/reorder/", views.task_reorder, name="task_reorder"),
+    path("task/recur-done/", views.recur_group_done, name="recur_group_done"),
     path("task/<str:task_id>/", views.task_detail, name="task_detail"),
     path("task/<str:task_id>/update/", views.task_update, name="task_update"),
     path("task/<str:task_id>/delete/", views.task_delete, name="task_delete"),

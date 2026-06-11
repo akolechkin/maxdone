@@ -24,6 +24,12 @@ def visible_qs(qs):
 # `due_date` at query time. This gives automatic midnight-correctness (a task
 # dated "tomorrow" falls into TODAY on its own after midnight) with no cron.
 
+def _today_sod():
+    """Start of today in the user's server time (getTodaySOD-equivalent)."""
+    local = timezone.localtime(timezone.now())
+    return local.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 def _today_eod():
     """End of today in the user's server time (getTodayEOD-equivalent)."""
     local = timezone.localtime(timezone.now())
