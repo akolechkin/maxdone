@@ -59,16 +59,28 @@ def horizon_for(due_date):
 
 
 def horizon_filter(qs, horizon_key):
-    """BR-8: restrict a queryset to a horizon by filtering on due_date (no cron, no stored type)."""
+    """BR-20 (hybrid horizon): a horizon list = DATED tasks whose due_date falls in the
+    horizon (BR-7/BR-8) PLUS DATELESS tasks whose stored box (`task_type`) is this horizon.
+
+    Dated tasks ignore `task_type` (it is derived from due_date); dateless tasks ignore
+    due_date (they hold the box they were created/sent to and never auto-migrate). The two
+    clauses are mutually exclusive (a row is either dated or not), so no double-counting.
+    """
+    from django.db.models import Q
+    box = HORIZON_BY_KEY.get(horizon_key)
     if horizon_key == "INBOX":
-        return qs.filter(due_date__isnull=True)
+        # dateless tasks explicitly in INBOX (default box) — incl. the legacy UNDEFINED=0
+        return qs.filter(due_date__isnull=True,
+                         task_type__in=[Task.Horizon.UNDEFINED, Task.Horizon.INBOX])
     if horizon_key == "TODAY":
-        return qs.filter(due_date__isnull=False, due_date__lte=_today_eod())
-    if horizon_key == "WEEK":
-        return qs.filter(due_date__gt=_today_eod(), due_date__lte=_week_eod())
-    if horizon_key == "LATER":
-        return qs.filter(due_date__gt=_week_eod())
-    return qs
+        dated = Q(due_date__isnull=False, due_date__lte=_today_eod())
+    elif horizon_key == "WEEK":
+        dated = Q(due_date__gt=_today_eod(), due_date__lte=_week_eod())
+    elif horizon_key == "LATER":
+        dated = Q(due_date__gt=_week_eod())
+    else:
+        return qs
+    return qs.filter(dated | Q(due_date__isnull=True, task_type=box))
 
 
 def due_for_horizon(horizon_key):
@@ -372,21 +384,52 @@ def materialize_due_recurrences(now=None) -> int:
 
 
 def move_task(task: Task, horizon_key: str) -> Task:
-    """Feature catalog #1 + BR-10: move between horizons by setting due_date.
+    """Feature catalog #1 + BR-10 + BR-20: move between horizons, carrying the subtree.
 
-    The horizon is derived from due_date (BR-7), so moving means re-dating the task;
-    the whole subtree is carried along to the same date.
+    Dated horizons (TODAY/WEEK/LATER) re-date the task (horizon then derives from the
+    date, BR-7). INBOX has no date — it sets the dateless box (`task_type=INBOX`) and
+    clears due_date (BR-20). Either way the whole subtree is carried to the same box.
     """
     if horizon_key in HORIZON_BY_KEY:
-        _set_due_recursive(task, due_for_horizon(horizon_key))
+        _set_box_recursive(task, due_for_horizon(horizon_key), HORIZON_BY_KEY[horizon_key])
     return task
 
 
-def _set_due_recursive(task: Task, due) -> None:
+def _set_box_recursive(task: Task, due, box: int) -> None:
+    # For dated targets save() re-derives task_type from due_date; for the dateless
+    # INBOX target the explicit box sticks (save() leaves task_type alone when due_date is None).
     task.due_date = due
-    task.save(update_fields=["due_date", "task_type", "modified"])  # save() re-derives task_type
+    task.task_type = box
+    task.save(update_fields=["due_date", "task_type", "modified"])
     for child in task.children.all():
-        _set_due_recursive(child, due)
+        _set_box_recursive(child, due, box)
+
+
+def first_occurrence(rule_str: str, anchor=None):
+    """BR-24: the nearest date that satisfies an RRULE, used to anchor a recurring task
+    that has no due_date. Counts from the start of today, INCLUSIVE — so "every day"
+    yields today and "every Tuesday" yields the next Tuesday (today if today is Tuesday).
+    Returns None for an empty/unparsable rule (the form has already validated the subset).
+    """
+    rule_str = (rule_str or "").strip()
+    if not rule_str:
+        return None
+    parts = _rrule_parts(rule_str)
+    raw = ";".join(f"{k}={v}" for k, v in parts.items() if k not in ("COUNT", "UNTIL"))
+    anchor = anchor or _today_sod()
+    try:
+        rule = rrulestr("RRULE:" + raw, dtstart=anchor)
+    except (ValueError, TypeError):
+        return None
+    return rule.after(anchor, inc=True)
+
+
+def to_inbox(task: Task) -> Task:
+    """BR-21: send a task to INBOX — clear due_date and set the dateless box to INBOX.
+    BR-25: a recurring task keeps its `recur_rule` (the repeat just "sleeps" without a
+    date until completed). Carries the whole subtree, like move/archive (BR-7)."""
+    _set_box_recursive(task, None, Task.Horizon.INBOX)
+    return task
 
 
 def copy_task(task: Task) -> Task:

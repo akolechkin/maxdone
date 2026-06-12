@@ -101,23 +101,32 @@ class Task(TimeStamped):
         return self.title
 
     def save(self, *args, **kwargs):
-        # BR-7/BR-8: keep the stored task_type consistent with due_date so any
-        # reader (admin, import, debugging) sees the right horizon. It is a
-        # denormalized hint, NOT the source of truth — queries derive on the fly.
+        # BR-20 (hybrid horizon): a DATED task derives its box from due_date (BR-7) and the
+        # stored task_type is kept in sync as a denormalized hint. A DATELESS task KEEPS its
+        # task_type — that is its real box (the one it was created in or sent to); it must not
+        # be flattened to INBOX. So only re-derive when there is a date to derive from.
         from . import services
-        self.task_type = services.horizon_for(self.due_date)
+        if self.due_date is not None:
+            self.task_type = services.horizon_for(self.due_date)
         super().save(*args, **kwargs)
 
     @property
     def horizon(self):
-        """BR-7: the live horizon, derived from due_date (not the stored field)."""
+        """BR-20: live horizon — derived from due_date when dated, else the stored box."""
         from . import services
-        return services.horizon_for(self.due_date)
+        if self.due_date is not None:
+            return services.horizon_for(self.due_date)
+        return self.task_type
 
     def visible_children(self):
         """BR-1/BR-7: child subtasks that pass the visibility filter."""
         from . import services
         return services.visible_qs(self.children.all())
+
+    def editor_children(self):
+        """BR-23: subtasks shown in the editor — non-archived, INCLUDING done ones (they
+        appear struck-through, not hidden). Completed/active alike are toggled in place."""
+        return self.children.filter(archived=False)
 
     @property
     def is_hidden(self):

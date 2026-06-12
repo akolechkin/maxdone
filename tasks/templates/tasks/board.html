@@ -14,7 +14,7 @@
       </div>
 
       <button class="btn-accent w-full mb-3.5"
-              hx-get="{% url 'task_new' %}" hx-target="#editor-body" @click="editorOpen=true">
+              hx-get="{% url 'task_new' %}?h={{ horizon }}" hx-target="#editor-body" @click="editorOpen=true">
         + Новая задача
       </button>
 

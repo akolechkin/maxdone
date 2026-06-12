@@ -1,0 +1,14 @@
+{# BR-23: subtask row. Clicking the checkbox/title TOGGLES done (with strike-through);
+   deletion is a separate explicit × control. Re-renders the whole subtasks section. #}
+<div class="flex items-center gap-2 py-1 group/sub">
+  <button hx-post="{% url 'subtask_toggle' task.id %}" hx-target="#subtasks-{{ task.parent_id }}" hx-swap="outerHTML"
+          aria-label="Переключить выполнение"
+          class="w-[15px] h-[15px] rounded-[4px] border-[1.5px] shrink-0
+                 {% if task.done %}bg-teal border-teal{% else %}border-line-strong{% endif %}"></button>
+  <button type="button" hx-post="{% url 'subtask_toggle' task.id %}" hx-target="#subtasks-{{ task.parent_id }}" hx-swap="outerHTML"
+          class="flex-1 min-w-0 text-left text-xs leading-snug
+                 {% if task.done %}line-through text-ink-faint{% else %}text-ink{% endif %}">{{ task.title }}</button>
+  <button type="button" title="Удалить подзадачу" aria-label="Удалить подзадачу"
+          hx-post="{% url 'subtask_delete' task.id %}" hx-target="#subtasks-{{ task.parent_id }}" hx-swap="outerHTML"
+          class="opacity-0 group-hover/sub:opacity-100 text-ink-faint hover:text-red-600 px-1 leading-none transition">&times;</button>
+</div>

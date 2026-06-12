@@ -152,7 +152,8 @@ def task_detail(request, task_id):
 
 @login_required
 def task_new(request):
-    # BR-9: a new task has no due_date by default → it lands in INBOX (not TODAY).
+    # BR-20: a new task without a date lands in the box ACTIVE at creation (the viewed
+    # horizon), not always INBOX. The form posts ?h=<horizon> so task_create knows the box.
     # BR-15: prefill from the last-used goal/context/is_project (task preferences).
     initial = {}
     if request.session.get("pref_goal"):
@@ -162,7 +163,9 @@ def task_new(request):
     if request.session.get("pref_is_project"):
         initial["is_project"] = True
     form = TaskForm(user=request.user, initial=initial)
-    return render(request, "tasks/_task_editor.html", {"task": None, "form": form})
+    horizon = request.GET.get("h", "TODAY")
+    return render(request, "tasks/_task_editor.html",
+                  {"task": None, "form": form, "horizon": horizon})
 
 
 @login_required
@@ -178,6 +181,14 @@ def task_create(request):
         set_h = request.POST.get("set_horizon")
         if set_h and not task.due_date:
             task.due_date = services.due_for_horizon(set_h)
+        # BR-24: setting a repeat on a task with no date anchors it to the nearest rule date.
+        if task.recur_rule and not task.due_date:
+            task.due_date = services.first_occurrence(task.recur_rule)
+        # BR-20: a still-dateless task lands in the box active at creation (set_horizon for
+        # quick-add, else the viewed horizon), NOT forced into INBOX.
+        if not task.due_date:
+            box = set_h or request.GET.get("h", "INBOX")
+            task.task_type = services.HORIZON_BY_KEY.get(box, Task.Horizon.INBOX)
         services.apply_hidden_state(task)
         task.save()
         # BR-15: remember this task's goal/context/is_project for the next new task.
@@ -200,6 +211,10 @@ def task_update(request, task_id):
     form = TaskForm(request.POST, instance=task, user=request.user)
     if form.is_valid():
         task = form.save(commit=False)
+        # BR-24: if a repeat is set but the date was cleared, re-anchor to the nearest rule
+        # date. (Sending a recurring task to INBOX dateless is the separate to_inbox action.)
+        if task.recur_rule and not task.due_date:
+            task.due_date = services.first_occurrence(task.recur_rule)
         services.apply_hidden_state(task)
         task.save()
         ctx = _board_context(request, request.GET.get("h", "TODAY"))
@@ -267,8 +282,29 @@ def subtask_add(request, task_id):
     if title:
         Task.objects.create(
             owner=request.user, title=title, parent=parent,
-            due_date=parent.due_date, priority=services.next_priority(request.user),
+            due_date=parent.due_date, task_type=parent.task_type,  # BR-20: inherit the parent's box
+            priority=services.next_priority(request.user),
         )
+    return render(request, "tasks/_subtasks.html", {"task": parent})
+
+
+@login_required
+@require_http_methods(["POST"])
+def subtask_toggle(request, task_id):
+    """BR-23: clicking a subtask toggles its done state (NOT delete); the section re-renders."""
+    child = get_object_or_404(Task, id=task_id, owner=request.user)
+    services.set_done(child, not child.done)
+    return render(request, "tasks/_subtasks.html", {"task": child.parent})
+
+
+@login_required
+@require_http_methods(["POST", "DELETE"])
+def subtask_delete(request, task_id):
+    """BR-23: deleting a subtask is a SEPARATE explicit action (the × control)."""
+    child = get_object_or_404(Task, id=task_id, owner=request.user)
+    parent = child.parent
+    services.exclude_occurrence(child)  # BR-5: skip this date if recurring
+    child.delete()
     return render(request, "tasks/_subtasks.html", {"task": parent})
 
 
@@ -323,6 +359,19 @@ def task_move(request, task_id, horizon):
     services.move_task(task, horizon)
     ctx = _board_context(request, request.GET.get("h", "TODAY"))
     return render(request, "tasks/_task_list.html", ctx)
+
+
+@login_required
+@require_http_methods(["POST"])
+def task_to_inbox(request, task_id):
+    """BR-21: send the task to INBOX (clears due_date, sets the box to INBOX).
+    BR-25: a recurring task keeps its rule — the repeat sleeps in INBOX without a date."""
+    task = get_object_or_404(Task, id=task_id, owner=request.user)
+    services.to_inbox(task)
+    ctx = _board_context(request, request.GET.get("h", "TODAY"))
+    resp = render(request, "tasks/_task_list.html", ctx)
+    resp["HX-Trigger"] = "taskSaved"
+    return resp
 
 
 # ---- Archive (BR-9) ----

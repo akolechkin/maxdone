@@ -1,3 +1,4 @@
+{% load mx %}
 <div id="task-{{ task.id }}" class="flex gap-2.5 py-2.5 border-b border-line group">
   <button hx-post="{% url 'toggle_done' task.id %}" hx-target="#task-{{ task.id }}" hx-swap="outerHTML"
           class="w-[18px] h-[18px] rounded-[5px] border-[1.5px] mt-0.5 shrink-0
@@ -10,7 +11,7 @@
       {% if task.is_hidden %}<span class="chip bg-surface-alt text-ink-faint">скрыта</span>{% endif %}
       {% if task.goal %}<span class="chip bg-teal-soft text-teal-fg">{{ task.goal.title }}</span>{% endif %}
       {% if task.context %}<span class="chip bg-surface-alt text-ink-muted">@{{ task.context.title }}</span>{% endif %}
-      {% if task.due_date %}<span class="chip text-ink-faint">⏱ {{ task.due_date|date:"d.m H:i" }}</span>{% endif %}
+      {% if task.due_date %}{% if not task.done and task.due_date|is_overdue %}<span class="chip text-red-600">🔥 {{ task.due_date|date:"d.m H:i" }}</span>{% else %}<span class="chip text-ink-faint">⏱ {{ task.due_date|date:"d.m H:i" }}</span>{% endif %}{% endif %}
       {% if task.recur_rule %}<span class="chip text-ink-faint">↻</span>{% endif %}
       {% with total=task.checklist.count %}{% if total %}<span class="chip text-ink-faint">☑ {{ total }}</span>{% endif %}{% endwith %}
     </div>
