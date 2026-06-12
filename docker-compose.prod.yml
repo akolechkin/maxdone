@@ -44,6 +44,26 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # spec/06 A (BR-5 catch-up): materialize overdue recurring occurrences once a day.
+  # Required in prod — without it, occurrences that piled up while the user was away
+  # never appear (the dev stack has the same service). Reuses the baked web image;
+  # no source bind-mount, unlike dev. Lightweight sleep-loop (no Celery/system cron).
+  recur-cron:
+    build: .
+    command: >
+      sh -c "while true; do
+               python manage.py materialize_recurrences || true;
+               sleep 86400;
+             done"
+    environment:
+      DJANGO_DEBUG: "0"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY in .env.prod}
+      DATABASE_URL: postgres://${POSTGRES_USER:-maxdone}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-maxdone}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   nginx:
     image: nginx:1.27-alpine
     ports:
