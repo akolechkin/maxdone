@@ -1,6 +1,6 @@
 <div id="subtasks-{{ task.id }}">
-  {# BR-32: drag to reorder subtasks; reuses task_reorder (fractional priority) with a
-     "sub-" id prefix so editor rows never collide with board "task-" rows. #}
+  {% comment %}BR-32: drag to reorder subtasks; reuses task_reorder (fractional priority) with a
+  "sub-" id prefix so editor rows never collide with board "task-" rows.{% endcomment %}
   <div data-sortable data-id-prefix="sub-" data-reorder-url="{% url 'task_reorder' %}">
     {% for child in task.editor_children %}
       {% include "tasks/_subtask_row.html" with task=child %}
