@@ -1,5 +1,8 @@
 <div id="checklist-{{ task.id }}">
-  {% for item in task.checklist.all %}{% include "tasks/_check_item.html" %}{% endfor %}
+  {# BR-32: drag to reorder checklist items (persists CheckListItem.sort_order). #}
+  <div data-sortable data-id-prefix="check-" data-reorder-url="{% url 'check_reorder' %}">
+    {% for item in task.checklist.all %}{% include "tasks/_check_item.html" %}{% endfor %}
+  </div>
   <form hx-post="{% url 'check_item_add' task.id %}" hx-target="#checklist-{{ task.id }}" hx-swap="outerHTML"
         class="flex items-center gap-2 mt-1.5" @submit="$nextTick(()=>$el.reset())">
     <span class="text-ink-faint text-sm">+</span>

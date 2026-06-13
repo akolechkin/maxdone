@@ -147,9 +147,11 @@ def board(request):
 def task_detail(request, task_id):
     task = get_object_or_404(Task, id=task_id, owner=request.user)
     form = TaskForm(instance=task, user=request.user)
-    # BLOCKED_BY_GOAL_TEMPLATE: tasks created from a goal template are read-only.
+    # BR-30: the editor's actions (delete/archive/to-inbox/duplicate/save) must return to
+    # the box the user is viewing — thread the current horizon through, don't default TODAY.
+    # BR-T1: from_template no longer locks editing; it's only a passive origin marker.
     return render(request, "tasks/_task_editor.html",
-                  {"task": task, "form": form, "locked": task.from_template})
+                  {"task": task, "form": form, "horizon": request.GET.get("h", "TODAY")})
 
 
 @login_required
@@ -208,8 +210,8 @@ def task_create(request):
 @require_http_methods(["POST"])
 def task_update(request, task_id):
     task = get_object_or_404(Task, id=task_id, owner=request.user)
-    if task.from_template:  # BLOCKED_BY_GOAL_TEMPLATE: template-derived tasks can't be edited
-        return HttpResponse(status=403)
+    # BR-T1: template-derived tasks are ordinary editable tasks (the old
+    # BLOCKED_BY_GOAL_TEMPLATE 403 made sense only for a public catalog; single-user = no lock).
     form = TaskForm(request.POST, instance=task, user=request.user)
     if form.is_valid():
         task = form.save(commit=False)
@@ -242,8 +244,11 @@ def toggle_done(request, task_id):
     task = get_object_or_404(Task, id=task_id, owner=request.user)
     services.set_done(task, not task.done)
     # BR-11: completing/uncompleting changes the horizon counters → refresh them OOB.
+    # BR-30: keep the row's horizon so its editor link + move buttons stay box-aware.
+    horizon = request.GET.get("h", "TODAY")
     return render(request, "tasks/_task_row_swap.html",
-                  {"task": task, "counts": _horizon_counts(request.user)})
+                  {"task": task, "counts": _horizon_counts(request.user),
+                   "horizon": horizon, "horizon_nav": HORIZON_NAV})
 
 
 @login_required
@@ -335,6 +340,34 @@ def task_reorder(request):
     after = Task.objects.filter(id=request.POST.get("after") or "", owner=request.user).first()
     task.priority = services.priority_between(before, after)
     task.save(update_fields=["priority", "modified"])
+    return HttpResponse(status=204)
+
+
+def _resequence(items, moved, before_id, field="sort_order"):
+    """BR-32/BR-28: rebuild an integer order field from a drag drop. `items` is the
+    current group (ordered), `moved` is dropped right after the row whose id == before_id
+    (or to the top when before_id is empty). Renumbers 0..n, saving only what changed."""
+    items = [i for i in items if i.id != moved.id]
+    idx = 0
+    if before_id:
+        for i, it in enumerate(items):
+            if str(it.id) == str(before_id):
+                idx = i + 1
+                break
+    items.insert(idx, moved)
+    for i, it in enumerate(items):
+        if getattr(it, field) != i:
+            setattr(it, field, i)
+            it.save(update_fields=[field])
+
+
+@login_required
+@require_http_methods(["POST"])
+def check_reorder(request):
+    """BR-32: reorder a checklist item by drag&drop (persists sort_order)."""
+    item = get_object_or_404(CheckListItem, id=request.POST.get("id") or "",
+                             task__owner=request.user)
+    _resequence(list(item.task.checklist.all()), item, request.POST.get("before") or "")
     return HttpResponse(status=204)
 
 
@@ -640,6 +673,29 @@ def tasktmpl_delete(request, tasktmpl_id):
     tpl = tt.template
     tt.delete()
     return _render_editor(request, tpl)
+
+
+@login_required
+@require_http_methods(["POST"])
+def milestone_reorder(request):
+    """BR-28: drag&drop reorder milestones within a template (sort_order)."""
+    ms = get_object_or_404(MilestoneTemplate, id=request.POST.get("id") or "",
+                           template__owner=request.user)
+    _resequence(list(ms.template.milestones.all()), ms, request.POST.get("before") or "")
+    return HttpResponse(status=204)
+
+
+@login_required
+@require_http_methods(["POST"])
+def tasktmpl_reorder(request):
+    """BR-28: drag&drop reorder task templates within their milestone group (or the
+    unsorted group). Reordering only ever happens inside one list, so the group is the
+    moved item's own milestone."""
+    tt = get_object_or_404(TaskTemplate, id=request.POST.get("id") or "",
+                           template__owner=request.user)
+    siblings = tt.template.task_templates.filter(milestone_id=tt.milestone_id)
+    _resequence(list(siblings), tt, request.POST.get("before") or "")
+    return HttpResponse(status=204)
 
 
 @login_required

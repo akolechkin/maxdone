@@ -132,7 +132,7 @@ class TemplateCrud(TestCase):
         goal = Goal.objects.get(title="Запуск", owner=self.user)
         ms_task = Task.objects.get(title="Подготовка", owner=self.user)
         self.assertTrue(ms_task.is_project)
-        self.assertTrue(ms_task.from_template)  # BLOCKED_BY_GOAL_TEMPLATE preserved (BR-29)
+        self.assertTrue(ms_task.from_template)  # BR-T1: passive origin marker (no longer a lock)
         step = Task.objects.get(title="Шаг 1", owner=self.user)
         self.assertEqual(step.parent_id, ms_task.id)
 

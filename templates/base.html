@@ -55,23 +55,27 @@
       window.dispatchEvent(new CustomEvent("task-saved"));
     });
 
-    // Drag&drop reorder (spec/06 next-step): on drop, send the moved task + its
-    // neighbours so the server sets a fractional priority (services.priority_between).
+    // Drag&drop reorder (spec/06 + BR-32): on drop, send the moved row + its neighbours so
+    // the server reorders. Generic over the row id prefix (data-id-prefix, default "task-"):
+    // board/subtasks use "task-"/"sub-" (fractional priority), checklist "check-" / template
+    // editor "ms-"/"tt-" (integer sort_order). Endpoint comes from data-reorder-url.
     function _csrf() { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ""; }
     function initSortables() {
       document.querySelectorAll("[data-sortable]:not([data-sortable-ready])").forEach((el) => {
         el.setAttribute("data-sortable-ready", "1");
+        const prefix = el.dataset.idPrefix || "task-";
         new Sortable(el, {
           animation: 150,
+          handle: el.dataset.handle || undefined,  // text-input rows drag by a grip only
           onEnd: (e) => {
             const row = e.item;
-            if (!row.id.startsWith("task-")) return;
-            const sib = (n) => (n && n.id && n.id.startsWith("task-") ? n.id.slice(5) : "");
+            if (!row.id.startsWith(prefix)) return;
+            const sib = (n) => (n && n.id && n.id.startsWith(prefix) ? n.id.slice(prefix.length) : "");
             fetch(el.dataset.reorderUrl, {
               method: "POST",
               headers: { "X-CSRFToken": _csrf(), "Content-Type": "application/x-www-form-urlencoded" },
               body: new URLSearchParams({
-                id: row.id.slice(5),
+                id: row.id.slice(prefix.length),
                 before: sib(row.previousElementSibling),
                 after: sib(row.nextElementSibling),
               }),

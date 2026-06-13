@@ -53,14 +53,15 @@
   </button>
 </div>
 
-{% if locked %}
-<div class="mb-3.5 px-3 py-2 rounded-md bg-surface-alt text-ink-muted text-xs">
-  🔒 Задача из шаблона цели — редактирование заблокировано.
+{% if task.from_template %}
+{# BR-T1: origin marker only — the task is fully editable (no lock). #}
+<div class="mb-3.5 px-3 py-2 rounded-md bg-surface-alt text-ink-faint text-xs">
+  📋 Создана из шаблона цели.
 </div>
 {% endif %}
 
 <form hx-post="{{ post_url }}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list" class="form-spaced">
-  <fieldset {% if locked %}disabled{% endif %} class="form-spaced border-0 p-0 m-0">
+  <fieldset class="form-spaced border-0 p-0 m-0">
   <div>{{ form.title }}
     {% if form.title.errors %}<div class="text-xs text-red-600 mt-1">{{ form.title.errors.0 }}</div>{% endif %}</div>
 
@@ -173,9 +174,7 @@
   <div>{{ form.note }}</div>
   </fieldset>
 
-  {% if not locked %}
   <button type="submit" class="btn-accent w-full">{% if task %}Сохранить{% else %}Создать{% endif %}</button>
-  {% endif %}
 </form>
 
 {% if task %}

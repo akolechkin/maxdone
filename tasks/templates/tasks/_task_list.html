@@ -1,4 +1,4 @@
-{% if oob_counts %}{% include "tasks/_counts_oob.html" %}{% endif %}
+{% if oob_counts %}{% include "tasks/_nav_items.html" with nav_oob=True %}{% endif %}
 <div class="flex items-center justify-between mb-3">
   <h3 class="text-lg font-medium m-0">{{ horizon_label }}</h3>
   <span class="text-xs text-ink-faint">{{ tasks|length }} задач</span>

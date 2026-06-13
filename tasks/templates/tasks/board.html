@@ -19,12 +19,7 @@
       </button>
 
       <nav class="space-y-0.5">
-        {% for key, label in horizon_nav %}
-        <a href="?h={{ key }}" hx-get="?h={{ key }}" hx-target="#task-list" hx-push-url="true"
-           class="nav-item {% if horizon == key %}nav-item-active{% endif %}">
-          <span class="flex-1">{{ label }}</span>
-          <span id="count-{{ key }}" class="text-xs text-ink-faint">{{ counts|dict_get:key }}</span></a>
-        {% endfor %}
+        {% include "tasks/_nav_items.html" %}
       </nav>
 
       <div class="border-t border-line mt-2.5 pt-2 space-y-0.5">

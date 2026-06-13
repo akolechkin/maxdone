@@ -1,7 +1,11 @@
 <div id="subtasks-{{ task.id }}">
-  {% for child in task.editor_children %}
-    {% include "tasks/_subtask_row.html" with task=child %}
-  {% endfor %}
+  {# BR-32: drag to reorder subtasks; reuses task_reorder (fractional priority) with a
+     "sub-" id prefix so editor rows never collide with board "task-" rows. #}
+  <div data-sortable data-id-prefix="sub-" data-reorder-url="{% url 'task_reorder' %}">
+    {% for child in task.editor_children %}
+      {% include "tasks/_subtask_row.html" with task=child %}
+    {% endfor %}
+  </div>
   <form hx-post="{% url 'subtask_add' task.id %}" hx-target="#subtasks-{{ task.id }}" hx-swap="outerHTML"
         class="flex items-center gap-2 mt-1.5" @submit="$nextTick(()=>$el.reset())">
     <span class="text-ink-faint text-sm">+</span>

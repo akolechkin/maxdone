@@ -677,33 +677,36 @@ class RecurGroup(TestCase):
         self.assertNotContains(r, "просрочено")
 
 
-class TemplateLock(TestCase):
-    """BLOCKED_BY_GOAL_TEMPLATE: tasks created from a goal template are read-only."""
+class TemplateOrigin(TestCase):
+    """BR-T1 (spec/08): tasks created from a goal template carry a passive `from_template`
+    origin marker but are FULLY editable — the old BLOCKED_BY_GOAL_TEMPLATE 403/read-only
+    behavior was removed (it only made sense for a public catalog)."""
     def setUp(self):
         self.user = User.objects.create_user("u", password="p")
         self.client = Client()
         self.client.login(username="u", password="p")
 
-    def test_create_from_template_marks_locked(self):
-        tpl = GoalTemplate.objects.create(owner=self.user, title="T", published=True)
+    def test_create_from_template_marks_origin(self):
+        tpl = GoalTemplate.objects.create(owner=self.user, title="T")
         m = MilestoneTemplate.objects.create(template=tpl, title="M", sort_order=0)
         TaskTemplate.objects.create(template=tpl, milestone=m, title="Step", offset_days=0)
         self.client.post(reverse("template_create_goal", args=[tpl.id]), {"start_date": "2026-07-01"})
         self.assertTrue(Task.objects.get(title="M", owner=self.user).from_template)
         self.assertTrue(Task.objects.get(title="Step", owner=self.user).from_template)
 
-    def test_update_blocked(self):
+    def test_template_task_is_editable(self):  # BR-T1: no more 403
         t = Task.objects.create(owner=self.user, title="L", from_template=True, due_date=timezone.now())
         r = self.client.post(reverse("task_update", args=[t.id]), {"title": "changed"})
-        self.assertEqual(r.status_code, 403)
+        self.assertEqual(r.status_code, 200)
         t.refresh_from_db()
-        self.assertEqual(t.title, "L")
+        self.assertEqual(t.title, "changed")
 
-    def test_editor_shows_lock_and_hides_save(self):
+    def test_editor_shows_origin_note_and_save(self):  # BR-T1: marker, not a lock
         t = Task.objects.create(owner=self.user, title="L", from_template=True, due_date=timezone.now())
         r = self.client.get(reverse("task_detail", args=[t.id]))
-        self.assertContains(r, "заблокировано")
-        self.assertNotContains(r, "Сохранить")
+        self.assertContains(r, "Создана из шаблона")
+        self.assertNotContains(r, "заблокировано")
+        self.assertContains(r, "Сохранить")
 
     def test_normal_task_still_editable(self):
         t = Task.objects.create(owner=self.user, title="N", due_date=timezone.now())

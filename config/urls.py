@@ -36,6 +36,7 @@ urlpatterns = [
     path("task/<str:task_id>/unarchive/", views.task_unarchive, name="task_unarchive"),
     path("task/<str:task_id>/checklist/add/", views.check_item_add, name="check_item_add"),
     path("task/<str:task_id>/subtask/add/", views.subtask_add, name="subtask_add"),
+    path("check/reorder/", views.check_reorder, name="check_reorder"),
     path("check/<int:item_id>/toggle/", views.toggle_check_item, name="toggle_check_item"),
     path("check/<int:item_id>/delete/", views.check_item_delete, name="check_item_delete"),
 
@@ -47,9 +48,11 @@ urlpatterns = [
     path("templates/<str:template_id>/delete/", views.template_delete, name="template_delete"),
     path("templates/<str:template_id>/create-goal/", views.template_create_goal, name="template_create_goal"),
     path("templates/<str:template_id>/milestone/add/", views.milestone_add, name="milestone_add"),
+    path("milestone/reorder/", views.milestone_reorder, name="milestone_reorder"),
     path("milestone/<int:milestone_id>/update/", views.milestone_update, name="milestone_update"),
     path("milestone/<int:milestone_id>/delete/", views.milestone_delete, name="milestone_delete"),
     path("templates/<str:template_id>/task/add/", views.tasktmpl_add, name="tasktmpl_add"),
+    path("tasktmpl/reorder/", views.tasktmpl_reorder, name="tasktmpl_reorder"),
     path("tasktmpl/<int:tasktmpl_id>/update/", views.tasktmpl_update, name="tasktmpl_update"),
     path("tasktmpl/<int:tasktmpl_id>/delete/", views.tasktmpl_delete, name="tasktmpl_delete"),
 

@@ -1,10 +1,10 @@
 {% load mx %}
 <div id="task-{{ task.id }}" class="flex gap-2.5 py-2.5 border-b border-line group">
-  <button hx-post="{% url 'toggle_done' task.id %}" hx-target="#task-{{ task.id }}" hx-swap="outerHTML"
+  <button hx-post="{% url 'toggle_done' task.id %}?h={{ horizon }}" hx-target="#task-{{ task.id }}" hx-swap="outerHTML"
           class="w-[18px] h-[18px] rounded-[5px] border-[1.5px] mt-0.5 shrink-0
                  {% if task.done %}bg-teal border-teal{% else %}border-line-strong{% endif %}"></button>
   <div class="flex-1 min-w-0 cursor-pointer"
-       hx-get="{% url 'task_detail' task.id %}" hx-target="#editor-body" @click="editorOpen=true">
+       hx-get="{% url 'task_detail' task.id %}?h={{ horizon }}" hx-target="#editor-body" @click="editorOpen=true">
     <div class="text-sm leading-snug {% if task.done %}line-through text-ink-faint{% endif %}">{{ task.title }}</div>
     <div class="flex gap-1.5 mt-1.5 flex-wrap items-center">
       {% if task.is_project %}<span class="chip bg-accent-soft text-accent-fg">проект</span>{% endif %}

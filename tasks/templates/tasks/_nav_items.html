@@ -1,0 +1,12 @@
+{% load mx %}
+{% comment %}BR-31: horizon nav links. Rendered inline in the sidebar AND, on HTMX swaps,
+out-of-band (nav_oob=True) so the active highlight follows box switches and the counters
+refresh together. Each anchor carries its own count span (id count-<key>), so the row-swap
+counts-only OOB (_counts_oob.html) still targets them.{% endcomment %}
+{% for key, label in horizon_nav %}
+<a id="nav-{{ key }}"{% if nav_oob %} hx-swap-oob="true"{% endif %}
+   href="?h={{ key }}" hx-get="?h={{ key }}" hx-target="#task-list" hx-push-url="true"
+   class="nav-item {% if horizon == key %}nav-item-active{% endif %}">
+  <span class="flex-1">{{ label }}</span>
+  <span id="count-{{ key }}" class="text-xs text-ink-faint">{{ counts|dict_get:key }}</span></a>
+{% endfor %}

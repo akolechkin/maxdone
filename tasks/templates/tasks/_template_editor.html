@@ -14,12 +14,13 @@ intentionally NOT edited here (spec/08, Milestone 4 scope).{% endcomment %}
     <button type="submit" class="btn-accent text-xs">сохранить</button>
   </form>
 
-  {# BR-28: milestones, each with its own task templates #}
-  <div class="space-y-3">
+  {# BR-28: milestones (drag by the ◆ grip to reorder), each with its own task templates #}
+  <div class="space-y-3" data-sortable data-id-prefix="ms-" data-handle=".ms-grip"
+       data-reorder-url="{% url 'milestone_reorder' %}">
     {% for ms in t.milestones.all %}
-    <div class="border border-line rounded-md p-2.5 space-y-1.5">
+    <div id="ms-{{ ms.id }}" class="border border-line rounded-md p-2.5 space-y-1.5">
       <div class="flex items-center gap-2">
-        <span class="text-ink-faint shrink-0">◆</span>
+        <span class="ms-grip text-ink-faint shrink-0 cursor-grab select-none" title="Перетащить">◆</span>
         <form hx-post="{% url 'milestone_update' ms.id %}" hx-target="#template-editor" hx-swap="outerHTML"
               class="flex-1 flex items-center gap-2">
           <input name="title" value="{{ ms.title }}"
@@ -31,19 +32,22 @@ intentionally NOT edited here (spec/08, Milestone 4 scope).{% endcomment %}
                 class="text-ink-faint hover:text-red-600 px-1 leading-none shrink-0">&times;</button>
       </div>
 
-      {% for tt in ms.task_templates.all %}
-      <div class="flex items-center gap-2 pl-5">
-        <span class="text-ink-faint shrink-0 text-xs">·</span>
-        <form hx-post="{% url 'tasktmpl_update' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
-              class="flex-1 flex items-center gap-2">
-          <input name="title" value="{{ tt.title }}"
-                 class="flex-1 border border-line rounded-md px-2 py-1 text-xs">
-        </form>
-        <button hx-post="{% url 'tasktmpl_delete' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
-                title="Удалить задачу" aria-label="Удалить задачу"
-                class="text-ink-faint hover:text-red-600 px-1 leading-none shrink-0">&times;</button>
+      <div data-sortable data-id-prefix="tt-" data-handle=".tt-grip"
+           data-reorder-url="{% url 'tasktmpl_reorder' %}">
+        {% for tt in ms.task_templates.all %}
+        <div id="tt-{{ tt.id }}" class="flex items-center gap-2 pl-5">
+          <span class="tt-grip text-ink-faint shrink-0 text-xs cursor-grab select-none" title="Перетащить">·</span>
+          <form hx-post="{% url 'tasktmpl_update' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+                class="flex-1 flex items-center gap-2">
+            <input name="title" value="{{ tt.title }}"
+                   class="flex-1 border border-line rounded-md px-2 py-1 text-xs">
+          </form>
+          <button hx-post="{% url 'tasktmpl_delete' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+                  title="Удалить задачу" aria-label="Удалить задачу"
+                  class="text-ink-faint hover:text-red-600 px-1 leading-none shrink-0">&times;</button>
+        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
 
       <form hx-post="{% url 'tasktmpl_add' t.id %}" hx-target="#template-editor" hx-swap="outerHTML"
             class="flex items-center gap-2 pl-5">
@@ -64,22 +68,25 @@ intentionally NOT edited here (spec/08, Milestone 4 scope).{% endcomment %}
             class="text-xs shrink-0 border border-line rounded-md px-2.5 py-1.5 text-ink-muted hover:text-ink">добавить этап</button>
   </form>
 
-  {# BR-28: task templates not bound to any milestone #}
+  {# BR-28: task templates not bound to any milestone (drag by the · grip to reorder) #}
   <div class="border-t border-line pt-3 space-y-1.5">
     <div class="text-[11px] text-ink-faint">Задачи вне этапов</div>
-    {% for tt in t.task_templates.all %}{% if not tt.milestone_id %}
-    <div class="flex items-center gap-2">
-      <span class="text-ink-faint shrink-0 text-xs">·</span>
-      <form hx-post="{% url 'tasktmpl_update' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
-            class="flex-1 flex items-center gap-2">
-        <input name="title" value="{{ tt.title }}"
-               class="flex-1 border border-line rounded-md px-2 py-1 text-xs">
-      </form>
-      <button hx-post="{% url 'tasktmpl_delete' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
-              title="Удалить задачу" aria-label="Удалить задачу"
-              class="text-ink-faint hover:text-red-600 px-1 leading-none shrink-0">&times;</button>
+    <div data-sortable data-id-prefix="tt-" data-handle=".tt-grip"
+         data-reorder-url="{% url 'tasktmpl_reorder' %}">
+      {% for tt in t.task_templates.all %}{% if not tt.milestone_id %}
+      <div id="tt-{{ tt.id }}" class="flex items-center gap-2">
+        <span class="tt-grip text-ink-faint shrink-0 text-xs cursor-grab select-none" title="Перетащить">·</span>
+        <form hx-post="{% url 'tasktmpl_update' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+              class="flex-1 flex items-center gap-2">
+          <input name="title" value="{{ tt.title }}"
+                 class="flex-1 border border-line rounded-md px-2 py-1 text-xs">
+        </form>
+        <button hx-post="{% url 'tasktmpl_delete' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+                title="Удалить задачу" aria-label="Удалить задачу"
+                class="text-ink-faint hover:text-red-600 px-1 leading-none shrink-0">&times;</button>
+      </div>
+      {% endif %}{% endfor %}
     </div>
-    {% endif %}{% endfor %}
     <form hx-post="{% url 'tasktmpl_add' t.id %}" hx-target="#template-editor" hx-swap="outerHTML"
           class="flex items-center gap-2">
       <input name="title" placeholder="+ задача"
