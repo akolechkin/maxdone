@@ -67,6 +67,11 @@
         new Sortable(el, {
           animation: 150,
           handle: el.dataset.handle || undefined,  // text-input rows drag by a grip only
+          // Don't let a press on an interactive control start a drag — otherwise SortableJS
+          // swallows the click (e.g. the subtask/checklist × delete). preventOnFilter:false
+          // lets the native click through.
+          filter: "button, a, input, textarea, select, label",
+          preventOnFilter: false,
           onEnd: (e) => {
             const row = e.item;
             if (!row.id.startsWith(prefix)) return;
