@@ -1,5 +1,5 @@
 from django import forms
-from .models import Task, Goal, Context
+from .models import Task, Goal, Context, GoalTemplate, MilestoneTemplate, TaskTemplate
 from .services import validate_rrule
 
 
@@ -108,5 +108,59 @@ class ContextForm(forms.ModelForm):
             "title": forms.TextInput(attrs={
                 "class": "w-full border border-line rounded-md px-3 py-2 text-sm",
                 "placeholder": "Название контекста (например, дома)", "autofocus": "autofocus",
+            }),
+        }
+
+
+# ---- Milestone 4 (BR-27/BR-28): user-authored goal templates ----
+
+class GoalTemplateForm(forms.ModelForm):
+    """BR-27: create/edit a template's own fields (title, description)."""
+
+    class Meta:
+        model = GoalTemplate
+        fields = ["title", "description"]
+        widgets = {
+            "title": forms.TextInput(attrs={
+                "class": "w-full border border-line rounded-md px-3 py-2 text-sm",
+                "placeholder": "Название шаблона", "autofocus": "autofocus",
+            }),
+            "description": forms.Textarea(attrs={
+                "class": "w-full border border-line rounded-md px-3 py-2 text-sm",
+                "rows": 2, "placeholder": "Описание…",
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["description"].required = False
+
+
+class MilestoneTemplateForm(forms.ModelForm):
+    """BR-28: a milestone inside a template (title only; ordering via sort_order)."""
+
+    class Meta:
+        model = MilestoneTemplate
+        fields = ["title"]
+        widgets = {
+            "title": forms.TextInput(attrs={
+                "class": "flex-1 border border-line rounded-md px-2 py-1.5 text-sm",
+                "placeholder": "Этап (например, Подготовка)",
+            }),
+        }
+
+
+class TaskTemplateForm(forms.ModelForm):
+    """BR-28: a task inside a template. Only the structural title is editable here —
+    note/checklist/recur and relative offset days are intentionally out of the
+    Milestone 4 editor (see spec/08)."""
+
+    class Meta:
+        model = TaskTemplate
+        fields = ["title"]
+        widgets = {
+            "title": forms.TextInput(attrs={
+                "class": "flex-1 border border-line rounded-md px-2 py-1.5 text-sm",
+                "placeholder": "Задача шаблона",
             }),
         }

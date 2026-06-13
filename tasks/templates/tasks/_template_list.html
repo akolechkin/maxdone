@@ -1,0 +1,27 @@
+{% comment %}BR-27: list of the user's templates. Swap target for delete (#template-list).
+Each row: open editor, apply (create goal, BR-29), delete.{% endcomment %}
+<div id="template-list" class="p-4 space-y-3">
+  {% for t in templates %}
+  <div class="border border-line rounded-md p-3">
+    <div class="flex items-start gap-3">
+      <a href="{% url 'template_detail' t.id %}" class="flex-1 min-w-0 group/t">
+        <div class="text-sm font-medium group-hover/t:text-teal-fg">{{ t.title }}</div>
+        {% if t.description %}<div class="text-[11px] text-ink-faint mt-0.5">{{ t.description }}</div>{% endif %}
+        <div class="text-[11px] text-ink-faint mt-0.5">
+          {{ t.milestones.count }} этап(ов) · {{ t.task_templates.count }} задач(и)</div>
+      </a>
+      <form method="post" action="{% url 'template_create_goal' t.id %}" class="flex items-center gap-1.5">
+        {% csrf_token %}
+        <input type="date" name="start_date" class="border border-line rounded-md px-2 py-1 text-xs">
+        <button type="submit" class="btn-accent text-xs">создать цель</button>
+      </form>
+      <button hx-post="{% url 'template_delete' t.id %}" hx-target="#template-list" hx-swap="outerHTML"
+              hx-confirm="Удалить шаблон со всем содержимым?"
+              title="Удалить шаблон" aria-label="Удалить шаблон"
+              class="text-ink-faint hover:text-red-600 px-1 leading-none">&times;</button>
+    </div>
+  </div>
+  {% empty %}
+  <div class="text-sm text-ink-faint py-8 text-center">Пока нет шаблонов — создайте первый выше</div>
+  {% endfor %}
+</div>

@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% comment %}BR-26/BR-27: the user's own goal templates — list, create, open (edit), delete.
+Applying a template ("создать цель") stays here too (BR-29).{% endcomment %}
 {% block content %}
 <div class="p-3 max-w-[800px] mx-auto">
   <div class="bg-surface border border-line rounded-lg overflow-hidden min-h-[400px]">
@@ -6,42 +8,16 @@
       <a href="{% url 'board' %}" class="text-sm text-ink-muted hover:text-ink">← задачи</a>
       <h3 class="text-lg font-medium m-0">Шаблоны целей</h3>
     </div>
-    <div class="p-4 space-y-3">
-      {% for t in templates %}
-      <div class="border border-line rounded-md p-3">
-        <div class="flex items-start gap-3">
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium">{{ t.title }}
-              {% if not t.published %}<span class="chip bg-surface-alt text-ink-faint">черновик</span>{% endif %}</div>
-            {% if t.description %}<div class="text-[11px] text-ink-faint mt-0.5">{{ t.description }}</div>{% endif %}
-          </div>
-          <form method="post" action="{% url 'template_create_goal' t.id %}" class="flex items-center gap-1.5">
-            {% csrf_token %}
-            <input type="date" name="start_date" class="border border-line rounded-md px-2 py-1 text-xs">
-            <button type="submit" class="btn-accent text-xs">создать цель</button>
-          </form>
-        </div>
 
-        {% for ms in t.milestones.all %}
-        <div class="mt-2 pl-3 border-l border-line">
-          <div class="text-xs font-medium">◆ {{ ms.title }}</div>
-          {% for tt in ms.task_templates.all %}
-          <div class="text-[11px] text-ink-muted">· {{ tt.title }}{% if tt.offset_days %} (+{{ tt.offset_days }}д){% endif %}</div>
-          {% endfor %}
-          {% for kr in ms.key_results.all %}
-          <div class="text-[11px] text-teal-fg">★ {{ kr.title }} · {{ kr.get_kind_display }} · план {{ kr.planned }}</div>
-          {% endfor %}
-        </div>
-        {% endfor %}
+    {# BR-27 Create: a new empty template, then jump into its editor #}
+    <form method="post" action="{% url 'template_create' %}"
+          class="flex items-center gap-2 border-b border-line px-4 py-3">
+      {% csrf_token %}
+      {{ form.title }}
+      <button type="submit" class="btn-accent text-sm shrink-0">новый шаблон</button>
+    </form>
 
-        {% for tt in t.task_templates.all %}{% if not tt.milestone_id %}
-        <div class="text-[11px] text-ink-muted mt-1">· {{ tt.title }}{% if tt.offset_days %} (+{{ tt.offset_days }}д){% endif %}</div>
-        {% endif %}{% endfor %}
-      </div>
-      {% empty %}
-      <div class="text-sm text-ink-faint py-8 text-center">Пока нет шаблонов</div>
-      {% endfor %}
-    </div>
+    {% include "tasks/_template_list.html" %}
   </div>
 </div>
 {% endblock %}

@@ -1,0 +1,89 @@
+{% comment %}BR-27/BR-28: structural editor body for one template. This whole div is the
+HTMX swap unit (#template-editor) — every milestone/task mutation re-renders it.
+CSRF rides the global hx-headers on <body>. KeyResults and task note/checklist/recur are
+intentionally NOT edited here (spec/08, Milestone 4 scope).{% endcomment %}
+<div id="template-editor" class="p-4 space-y-4">
+
+  {# BR-27 Update: title + description #}
+  <form hx-post="{% url 'template_update' t.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+        class="space-y-2">
+    <input name="title" value="{{ t.title }}"
+           class="w-full border border-line rounded-md px-3 py-2 text-sm font-medium">
+    <textarea name="description" rows="2" placeholder="Описание…"
+              class="w-full border border-line rounded-md px-3 py-2 text-sm">{{ t.description }}</textarea>
+    <button type="submit" class="btn-accent text-xs">сохранить</button>
+  </form>
+
+  {# BR-28: milestones, each with its own task templates #}
+  <div class="space-y-3">
+    {% for ms in t.milestones.all %}
+    <div class="border border-line rounded-md p-2.5 space-y-1.5">
+      <div class="flex items-center gap-2">
+        <span class="text-ink-faint shrink-0">◆</span>
+        <form hx-post="{% url 'milestone_update' ms.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+              class="flex-1 flex items-center gap-2">
+          <input name="title" value="{{ ms.title }}"
+                 class="flex-1 border border-line rounded-md px-2 py-1.5 text-sm font-medium">
+        </form>
+        <button hx-post="{% url 'milestone_delete' ms.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+                hx-confirm="Удалить этап и его задачи?"
+                title="Удалить этап" aria-label="Удалить этап"
+                class="text-ink-faint hover:text-red-600 px-1 leading-none shrink-0">&times;</button>
+      </div>
+
+      {% for tt in ms.task_templates.all %}
+      <div class="flex items-center gap-2 pl-5">
+        <span class="text-ink-faint shrink-0 text-xs">·</span>
+        <form hx-post="{% url 'tasktmpl_update' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+              class="flex-1 flex items-center gap-2">
+          <input name="title" value="{{ tt.title }}"
+                 class="flex-1 border border-line rounded-md px-2 py-1 text-xs">
+        </form>
+        <button hx-post="{% url 'tasktmpl_delete' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+                title="Удалить задачу" aria-label="Удалить задачу"
+                class="text-ink-faint hover:text-red-600 px-1 leading-none shrink-0">&times;</button>
+      </div>
+      {% endfor %}
+
+      <form hx-post="{% url 'tasktmpl_add' t.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+            class="flex items-center gap-2 pl-5">
+        <input type="hidden" name="milestone" value="{{ ms.id }}">
+        <input name="title" placeholder="+ задача этапа"
+               class="flex-1 border border-line rounded-md px-2 py-1 text-xs">
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# BR-28: add a milestone #}
+  <form hx-post="{% url 'milestone_add' t.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+        class="flex items-center gap-2">
+    <input name="title" placeholder="+ новый этап"
+           class="flex-1 border border-line rounded-md px-2 py-1.5 text-sm">
+    <button type="submit"
+            class="text-xs shrink-0 border border-line rounded-md px-2.5 py-1.5 text-ink-muted hover:text-ink">добавить этап</button>
+  </form>
+
+  {# BR-28: task templates not bound to any milestone #}
+  <div class="border-t border-line pt-3 space-y-1.5">
+    <div class="text-[11px] text-ink-faint">Задачи вне этапов</div>
+    {% for tt in t.task_templates.all %}{% if not tt.milestone_id %}
+    <div class="flex items-center gap-2">
+      <span class="text-ink-faint shrink-0 text-xs">·</span>
+      <form hx-post="{% url 'tasktmpl_update' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+            class="flex-1 flex items-center gap-2">
+        <input name="title" value="{{ tt.title }}"
+               class="flex-1 border border-line rounded-md px-2 py-1 text-xs">
+      </form>
+      <button hx-post="{% url 'tasktmpl_delete' tt.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+              title="Удалить задачу" aria-label="Удалить задачу"
+              class="text-ink-faint hover:text-red-600 px-1 leading-none shrink-0">&times;</button>
+    </div>
+    {% endif %}{% endfor %}
+    <form hx-post="{% url 'tasktmpl_add' t.id %}" hx-target="#template-editor" hx-swap="outerHTML"
+          class="flex items-center gap-2">
+      <input name="title" placeholder="+ задача"
+             class="flex-1 border border-line rounded-md px-2 py-1 text-xs">
+    </form>
+  </div>
+</div>

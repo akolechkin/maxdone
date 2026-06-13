@@ -39,9 +39,19 @@ urlpatterns = [
     path("check/<int:item_id>/toggle/", views.toggle_check_item, name="toggle_check_item"),
     path("check/<int:item_id>/delete/", views.check_item_delete, name="check_item_delete"),
 
-    # goal templates
+    # goal templates (Milestone 4: user authoring — BR-26..BR-29)
     path("templates/", views.template_list, name="template_list"),
+    path("templates/create/", views.template_create, name="template_create"),
+    path("templates/<str:template_id>/", views.template_detail, name="template_detail"),
+    path("templates/<str:template_id>/update/", views.template_update, name="template_update"),
+    path("templates/<str:template_id>/delete/", views.template_delete, name="template_delete"),
     path("templates/<str:template_id>/create-goal/", views.template_create_goal, name="template_create_goal"),
+    path("templates/<str:template_id>/milestone/add/", views.milestone_add, name="milestone_add"),
+    path("milestone/<int:milestone_id>/update/", views.milestone_update, name="milestone_update"),
+    path("milestone/<int:milestone_id>/delete/", views.milestone_delete, name="milestone_delete"),
+    path("templates/<str:template_id>/task/add/", views.tasktmpl_add, name="tasktmpl_add"),
+    path("tasktmpl/<int:tasktmpl_id>/update/", views.tasktmpl_update, name="tasktmpl_update"),
+    path("tasktmpl/<int:tasktmpl_id>/delete/", views.tasktmpl_delete, name="tasktmpl_delete"),
 
     # goals
     path("goals/", views.goal_list, name="goal_list"),

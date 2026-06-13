@@ -531,11 +531,14 @@ class GoalTemplates(TestCase):
         TaskTemplate.objects.create(template=self.tpl, milestone=self.m, title="Step B", offset_days=10)
         KeyResult.objects.create(milestone=self.m, title="KR1", kind=KeyResult.Kind.SUM_RESULT, planned=50)
 
-    def test_catalog_lists_published_template(self):
+    def test_catalog_lists_own_template(self):
+        # Milestone 4 (BR-26/BR-27): the list shows the template; structure (milestones
+        # and task templates) is shown in the per-template detail editor, not the list.
         r = self.client.get(reverse("template_list"))
         self.assertContains(r, "Launch")
-        self.assertContains(r, "Prep")
-        self.assertContains(r, "KR1")
+        d = self.client.get(reverse("template_detail", args=[self.tpl.id]))
+        self.assertContains(d, "Prep")
+        self.assertContains(d, "Step A")
 
     def test_create_goal_from_template_expands(self):
         from datetime import date

@@ -2,15 +2,17 @@ from datetime import datetime
 from django.contrib.auth import login as auth_login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
-from django.db.models import Q
+from django.db.models import Q, Max
 from django.http import HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_http_methods
-from .models import Task, Goal, Context, CheckListItem, GoalTemplate
-from .forms import TaskForm, GoalForm, ContextForm
+from .models import (Task, Goal, Context, CheckListItem,
+                     GoalTemplate, MilestoneTemplate, TaskTemplate)
+from .forms import (TaskForm, GoalForm, ContextForm,
+                    GoalTemplateForm, MilestoneTemplateForm, TaskTemplateForm)
 from . import services
 
 
@@ -495,21 +497,156 @@ def search(request):
     return render(request, "tasks/search.html", ctx)
 
 
-# ---- Goal templates (BR-18) ----
+# ---- Goal templates (BR-18 apply; Milestone 4 BR-26..BR-29 authoring) ----
+
+def _owned_templates(user):
+    # BR-26: templates are owner-scoped — a user only ever sees/manages their own.
+    return GoalTemplate.objects.filter(owner=user)
+
+
+def _next_sort_order(qs):
+    return (qs.aggregate(m=Max("sort_order"))["m"] or 0) + 1
+
+
+def _render_editor(request, tpl):
+    """Re-render the whole template editor body (the HTMX swap unit for BR-28)."""
+    tpl = (_owned_templates(request.user)
+           .prefetch_related("milestones__key_results", "milestones__task_templates",
+                             "task_templates")
+           .get(id=tpl.id))
+    return render(request, "tasks/_template_editor.html", {"t": tpl})
+
 
 @login_required
 def template_list(request):
-    """Catalog: published templates + the user's own drafts."""
-    templates = (GoalTemplate.objects.filter(Q(published=True) | Q(owner=request.user))
+    """BR-26/BR-27 (Read): catalog of the user's own templates."""
+    templates = (_owned_templates(request.user)
                  .prefetch_related("milestones__key_results", "task_templates"))
-    return render(request, "tasks/templates.html", {"templates": templates})
+    return render(request, "tasks/templates.html",
+                  {"templates": templates, "form": GoalTemplateForm()})
+
+
+@login_required
+@require_http_methods(["POST"])
+def template_create(request):
+    """BR-27 (Create): a new, empty template owned by the user."""
+    form = GoalTemplateForm(request.POST)
+    if form.is_valid():
+        tpl = form.save(commit=False)
+        tpl.owner = request.user
+        tpl.save()
+        return redirect(reverse("template_detail", args=[tpl.id]))
+    return render(request, "tasks/templates.html",
+                  {"templates": _owned_templates(request.user), "form": form}, status=422)
+
+
+@login_required
+def template_detail(request, template_id):
+    """BR-27 (Read one): the structural editor for a single template."""
+    tpl = get_object_or_404(_owned_templates(request.user), id=template_id)
+    return render(request, "tasks/template_detail.html",
+                  {"t": tpl, "form": GoalTemplateForm(instance=tpl)})
+
+
+@login_required
+@require_http_methods(["POST"])
+def template_update(request, template_id):
+    """BR-27 (Update): edit title/description."""
+    tpl = get_object_or_404(_owned_templates(request.user), id=template_id)
+    form = GoalTemplateForm(request.POST, instance=tpl)
+    if form.is_valid():
+        form.save()
+    return _render_editor(request, tpl)
+
+
+@login_required
+@require_http_methods(["POST", "DELETE"])
+def template_delete(request, template_id):
+    """BR-27 (Delete): remove the template and all its content (cascade)."""
+    tpl = get_object_or_404(_owned_templates(request.user), id=template_id)
+    tpl.delete()
+    return render(request, "tasks/_template_list.html",
+                  {"templates": _owned_templates(request.user)})
+
+
+@login_required
+@require_http_methods(["POST"])
+def milestone_add(request, template_id):
+    """BR-28: add a milestone to the template."""
+    tpl = get_object_or_404(_owned_templates(request.user), id=template_id)
+    title = (request.POST.get("title") or "").strip()
+    if title:
+        MilestoneTemplate.objects.create(
+            template=tpl, title=title, sort_order=_next_sort_order(tpl.milestones))
+    return _render_editor(request, tpl)
+
+
+@login_required
+@require_http_methods(["POST"])
+def milestone_update(request, milestone_id):
+    """BR-28: rename a milestone."""
+    ms = get_object_or_404(MilestoneTemplate, id=milestone_id, template__owner=request.user)
+    title = (request.POST.get("title") or "").strip()
+    if title:
+        ms.title = title
+        ms.save()
+    return _render_editor(request, ms.template)
+
+
+@login_required
+@require_http_methods(["POST", "DELETE"])
+def milestone_delete(request, milestone_id):
+    """BR-28: delete a milestone (its task templates/key results cascade)."""
+    ms = get_object_or_404(MilestoneTemplate, id=milestone_id, template__owner=request.user)
+    tpl = ms.template
+    ms.delete()
+    return _render_editor(request, tpl)
+
+
+@login_required
+@require_http_methods(["POST"])
+def tasktmpl_add(request, template_id):
+    """BR-28: add a task template, optionally bound to a milestone."""
+    tpl = get_object_or_404(_owned_templates(request.user), id=template_id)
+    title = (request.POST.get("title") or "").strip()
+    ms = None
+    ms_id = request.POST.get("milestone")
+    if ms_id:
+        ms = get_object_or_404(tpl.milestones, id=ms_id)
+    if title:
+        TaskTemplate.objects.create(
+            template=tpl, milestone=ms, title=title,
+            sort_order=_next_sort_order(tpl.task_templates))
+    return _render_editor(request, tpl)
+
+
+@login_required
+@require_http_methods(["POST"])
+def tasktmpl_update(request, tasktmpl_id):
+    """BR-28: rename a task template."""
+    tt = get_object_or_404(TaskTemplate, id=tasktmpl_id, template__owner=request.user)
+    title = (request.POST.get("title") or "").strip()
+    if title:
+        tt.title = title
+        tt.save()
+    return _render_editor(request, tt.template)
+
+
+@login_required
+@require_http_methods(["POST", "DELETE"])
+def tasktmpl_delete(request, tasktmpl_id):
+    """BR-28: delete a task template."""
+    tt = get_object_or_404(TaskTemplate, id=tasktmpl_id, template__owner=request.user)
+    tpl = tt.template
+    tt.delete()
+    return _render_editor(request, tpl)
 
 
 @login_required
 @require_http_methods(["POST"])
 def template_create_goal(request, template_id):
-    template = get_object_or_404(
-        GoalTemplate, Q(published=True) | Q(owner=request.user), id=template_id)
+    """BR-29: instantiate a real goal from the user's own template."""
+    template = get_object_or_404(_owned_templates(request.user), id=template_id)
     d = parse_date(request.POST.get("start_date") or "")
     start_dt = timezone.make_aware(datetime(d.year, d.month, d.day)) if d else timezone.now()
     services.create_goal_from_template(template, request.user, start_dt)
