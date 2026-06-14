@@ -50,11 +50,14 @@ services:
   # no source bind-mount, unlike dev. Lightweight sleep-loop (no Celery/system cron).
   recur-cron:
     build: .
+    # Run once on start (backfill), then sleep until the next 00:01 (UTC — matches
+    # Django TIME_ZONE) and repeat daily. GNU `date` (Debian image) supports `-d`.
+    # Catch-up is idempotent, so the exact restart time / a missed day self-heals.
     command: >
-      sh -c "while true; do
+      sh -c 'while true; do
                python manage.py materialize_recurrences || true;
-               sleep 86400;
-             done"
+               sleep $(( $(date -d "tomorrow 00:01" +%s) - $(date +%s) ));
+             done'
     environment:
       DJANGO_DEBUG: "0"
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY in .env.prod}
