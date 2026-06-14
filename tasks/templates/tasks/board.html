@@ -2,19 +2,29 @@
 {% load mx %}
 {% block content %}
 <div class="p-3 max-w-[1100px] mx-auto"
-     x-data="{ editorOpen: false }"
+     x-data="{ editorOpen: false, sidebarOpen: false }"
      @task-saved.window="editorOpen=false">
-  <div class="grid grid-cols-[200px_minmax(0,1fr)] bg-surface border border-line rounded-lg overflow-hidden min-h-[560px]">
+  <div class="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] bg-surface border border-line rounded-lg overflow-hidden min-h-[560px]">
 
-    {# ===== sidebar ===== #}
-    <aside class="border-r border-line p-3.5 flex flex-col">
+    {# mobile backdrop for the sidebar drawer (md+: never shown) #}
+    <div x-show="sidebarOpen" x-cloak @click="sidebarOpen=false"
+         class="md:hidden fixed inset-0 bg-black/30 z-30"></div>
+
+    {# ===== sidebar — static column on md+, off-canvas drawer below md ===== #}
+    <aside class="border-r border-line p-3.5 flex flex-col bg-surface
+                  fixed inset-y-0 left-0 z-40 w-[260px] overflow-y-auto -translate-x-full transition-transform
+                  md:static md:inset-auto md:z-auto md:w-auto md:overflow-visible md:translate-x-0 md:transition-none"
+           :class="sidebarOpen ? '!translate-x-0' : ''">
       <div class="flex items-center gap-2 px-2 pb-3.5">
         <div class="w-7 h-7 rounded-md bg-accent text-white grid place-items-center text-sm font-medium">M</div>
-        <span class="text-base font-medium">maxdone</span>
+        <span class="text-base font-medium flex-1">maxdone</span>
+        <button type="button" @click="sidebarOpen=false" aria-label="Закрыть меню"
+                class="md:hidden text-ink-muted text-xl leading-none">&times;</button>
       </div>
 
       <button class="btn-accent w-full mb-3.5"
-              hx-get="{% url 'task_new' %}?h={{ horizon }}" hx-target="#editor-body" @click="editorOpen=true">
+              hx-get="{% url 'task_new' %}?h={{ horizon }}" hx-target="#editor-body"
+              @click="editorOpen=true; sidebarOpen=false">
         + Новая задача
       </button>
 
@@ -47,19 +57,34 @@
     {# ===== main ===== #}
     <div class="flex min-w-0">
       <div class="flex-1 min-w-0 flex flex-col">
-        <div class="flex border-b border-line px-2">
-          <div class="px-4 py-3 text-sm text-accent font-medium border-b-2 border-accent">Задачи</div>
-          <a href="{% url 'goal_list' %}" class="px-4 py-3 text-sm text-ink-muted hover:text-ink">Цели</a>
-          <a href="{% url 'context_list' %}" class="px-4 py-3 text-sm text-ink-muted hover:text-ink">Контексты</a>
+        {# mobile-only top bar: drawer toggle + horizon + quick new (md+: hidden) #}
+        <div class="md:hidden flex items-center gap-2 border-b border-line px-3 py-2">
+          <button type="button" @click="sidebarOpen=true" aria-label="Меню" class="p-1 text-ink-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <span class="text-sm font-medium flex-1">{{ horizon_label }}</span>
+          <button class="btn-accent !px-3 !py-1.5 text-xs"
+                  hx-get="{% url 'task_new' %}?h={{ horizon }}" hx-target="#editor-body"
+                  @click="editorOpen=true; sidebarOpen=false">+ Задача</button>
+        </div>
+        <div class="flex border-b border-line px-2 overflow-x-auto">
+          <div class="px-4 py-3 text-sm text-accent font-medium border-b-2 border-accent whitespace-nowrap">Задачи</div>
+          <a href="{% url 'goal_list' %}" class="px-4 py-3 text-sm text-ink-muted hover:text-ink whitespace-nowrap">Цели</a>
+          <a href="{% url 'context_list' %}" class="px-4 py-3 text-sm text-ink-muted hover:text-ink whitespace-nowrap">Контексты</a>
         </div>
         <div id="task-list" class="p-4 flex-1">
           {% include "tasks/_task_list.html" %}
         </div>
       </div>
 
-      <div class="border-l border-line transition-all overflow-hidden"
-           :class="editorOpen ? 'w-[320px]' : 'w-0'">
-        <div class="w-[320px] p-4" id="editor-body">
+      {# editor: fixed-width side column on md+, full-screen overlay below md #}
+      <div class="hidden md:block fixed inset-0 z-40 bg-surface overflow-y-auto
+                  md:static md:inset-auto md:z-auto md:bg-transparent md:overflow-hidden
+                  md:border-l md:border-line md:transition-all md:w-0"
+           :class="editorOpen ? '!block md:!w-[320px]' : ''">
+        <div class="w-full md:w-[320px] p-4" id="editor-body">
           <div class="text-sm text-ink-faint">Выберите или создайте задачу</div>
         </div>
       </div>

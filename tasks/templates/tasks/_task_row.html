@@ -16,10 +16,24 @@
       {% with total=task.checklist.count %}{% if total %}<span class="chip text-ink-faint">☑ {{ total }}</span>{% endif %}{% endwith %}
     </div>
   </div>
-  <div class="opacity-0 group-hover:opacity-100 flex gap-1 items-start transition">
+  {# desktop: hover-revealed horizon move cluster (unchanged on md+) #}
+  <div class="hidden md:flex opacity-0 group-hover:opacity-100 gap-1 items-start transition">
     {% for key, label in horizon_nav %}{% if key != horizon %}
       <button title="→ {{ label }}" hx-post="{% url 'task_move' task.id key %}?h={{ horizon }}"
               hx-target="#task-list" class="text-[10px] text-ink-faint hover:text-accent px-1">{{ label|slice:":2" }}</button>
     {% endif %}{% endfor %}
+  </div>
+  {# mobile: same moves behind a … menu so the row stays uncluttered on touch #}
+  <div x-data="{ m:false }" class="md:hidden relative shrink-0" @click.outside="m=false">
+    <button type="button" @click="m=!m" aria-label="Переместить задачу"
+            class="px-2 text-ink-faint text-lg leading-none">…</button>
+    <div x-show="m" x-cloak @click="m=false"
+         class="absolute right-0 top-7 z-10 bg-surface border border-line rounded-md p-1 shadow-sm
+                flex flex-col gap-0.5 min-w-[120px]">
+      {% for key, label in horizon_nav %}{% if key != horizon %}
+        <button hx-post="{% url 'task_move' task.id key %}?h={{ horizon }}" hx-target="#task-list"
+                class="text-left text-xs text-ink-muted hover:text-accent px-2 py-1 rounded">→ {{ label }}</button>
+      {% endif %}{% endfor %}
+    </div>
   </div>
 </div>

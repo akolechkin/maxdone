@@ -3,7 +3,7 @@ Each row: open editor, apply (create goal, BR-29), delete.{% endcomment %}
 <div id="template-list" class="p-4 space-y-3">
   {% for t in templates %}
   <div class="border border-line rounded-md p-3">
-    <div class="flex items-start gap-3">
+    <div class="flex flex-wrap items-start gap-3">
       <a href="{% url 'template_detail' t.id %}" class="flex-1 min-w-0 group/t">
         <div class="text-sm font-medium group-hover/t:text-teal-fg">{{ t.title }}</div>
         {% if t.description %}<div class="text-[11px] text-ink-faint mt-0.5">{{ t.description }}</div>{% endif %}

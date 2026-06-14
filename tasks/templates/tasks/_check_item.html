@@ -3,5 +3,5 @@
           class="w-4 h-4 rounded border shrink-0 {% if item.done %}bg-teal border-teal{% else %}border-line-strong{% endif %}"></button>
   <span class="flex-1 {% if item.done %}line-through text-ink-faint{% endif %}">{{ item.title }}</span>
   <button hx-post="{% url 'check_item_delete' item.id %}" hx-target="#checklist-{{ item.task.id }}" hx-swap="outerHTML"
-          class="opacity-0 group-hover:opacity-100 text-ink-faint hover:text-ink">&times;</button>
+          class="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-ink-faint hover:text-ink">&times;</button>
 </div>

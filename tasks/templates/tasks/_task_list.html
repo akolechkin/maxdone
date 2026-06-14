@@ -3,7 +3,7 @@
   <h3 class="text-lg font-medium m-0">{{ horizon_label }}</h3>
   <span class="text-xs text-ink-faint">{{ tasks|length }} задач</span>
 </div>
-<div class="flex items-center gap-2 mb-3 text-xs">
+<div class="flex flex-wrap items-center gap-2 mb-3 text-xs">
   <button hx-post="{% url 'toggle_setting' 'show_hidden' %}?h={{ horizon }}" hx-target="#task-list"
           class="px-2 py-1 rounded-md border {% if show_hidden %}bg-accent-soft text-accent-fg border-accent{% else %}border-line text-ink-muted{% endif %}">
     показать скрытые

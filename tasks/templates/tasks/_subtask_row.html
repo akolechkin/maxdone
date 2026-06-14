@@ -10,5 +10,5 @@ deletion is a separate explicit × control. Re-renders the whole subtasks sectio
                  {% if task.done %}line-through text-ink-faint{% else %}text-ink{% endif %}">{{ task.title }}</button>
   <button type="button" title="Удалить подзадачу" aria-label="Удалить подзадачу"
           hx-post="{% url 'subtask_delete' task.id %}" hx-target="#subtasks-{{ task.parent_id }}" hx-swap="outerHTML"
-          class="opacity-0 group-hover:opacity-100 text-ink-faint hover:text-red-600 px-1 leading-none transition">&times;</button>
+          class="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-ink-faint hover:text-red-600 px-1 leading-none transition">&times;</button>
 </div>

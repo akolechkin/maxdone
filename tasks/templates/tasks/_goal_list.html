@@ -7,9 +7,9 @@
     <div class="text-[11px] text-ink-faint">{{ goal.get_goal_type_display }}{% if goal.status %} · {{ goal.get_status_display }}{% endif %}</div>
   </div>
   <button hx-post="{% url 'goal_archive' goal.id %}" hx-target="#goal-list"
-          class="opacity-0 group-hover:opacity-100 text-ink-faint hover:text-ink text-sm">в архив</button>
+          class="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-ink-faint hover:text-ink text-sm">в архив</button>
   <button hx-post="{% url 'goal_delete' goal.id %}" hx-target="#goal-list" hx-confirm="Удалить цель навсегда?"
-          class="opacity-0 group-hover:opacity-100 text-ink-faint hover:text-ink text-sm">удалить</button>
+          class="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-ink-faint hover:text-ink text-sm">удалить</button>
 </div>
 {% empty %}
 <div class="text-sm text-ink-faint py-8 text-center">Пока нет целей</div>

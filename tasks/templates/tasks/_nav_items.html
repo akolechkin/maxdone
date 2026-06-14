@@ -6,6 +6,7 @@ counts-only OOB (_counts_oob.html) still targets them.{% endcomment %}
 {% for key, label in horizon_nav %}
 <a id="nav-{{ key }}"{% if nav_oob %} hx-swap-oob="true"{% endif %}
    href="?h={{ key }}" hx-get="?h={{ key }}" hx-target="#task-list" hx-push-url="true"
+   @click="sidebarOpen=false"
    class="nav-item {% if horizon == key %}nav-item-active{% endif %}">
   <span class="flex-1">{{ label }}</span>
   <span id="count-{{ key }}" class="text-xs text-ink-faint">{{ counts|dict_get:key }}</span></a>
