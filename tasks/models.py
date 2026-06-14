@@ -101,21 +101,14 @@ class Task(TimeStamped):
         return self.title
 
     def save(self, *args, **kwargs):
-        # BR-20 (hybrid horizon): a DATED task derives its box from due_date (BR-7) and the
-        # stored task_type is kept in sync as a denormalized hint. A DATELESS task KEEPS its
-        # task_type — that is its real box (the one it was created in or sent to); it must not
-        # be flattened to INBOX. So only re-derive when there is a date to derive from.
-        from . import services
-        if self.due_date is not None:
-            self.task_type = services.horizon_for(self.due_date)
+        # BR-38: the box (`task_type`) is STORED and set explicitly at create/move — it is
+        # NOT derived from due_date. Date and box live independently; only the BR-38
+        # "pull-forward" automation may later move a LATER/WEEK task to an earlier box.
         super().save(*args, **kwargs)
 
     @property
     def horizon(self):
-        """BR-20: live horizon — derived from due_date when dated, else the stored box."""
-        from . import services
-        if self.due_date is not None:
-            return services.horizon_for(self.due_date)
+        """BR-38: the planning box is the stored task_type (no derivation from due_date)."""
         return self.task_type
 
     def visible_children(self):

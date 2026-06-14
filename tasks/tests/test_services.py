@@ -66,20 +66,23 @@ class PriorityRule(TestCase):
 
 
 class SubtreeMove(TestCase):
-    """BR-10: moving a task re-dates its whole subtree into the target horizon."""
+    """BR-38: moving a task sets the stored box for its whole subtree; due_date is untouched."""
 
     def setUp(self):
         self.user = User.objects.create_user("u", password="p")
 
     def test_move_propagates_to_descendants(self):
         now = timezone.now()
-        root = Task.objects.create(owner=self.user, title="root", due_date=now)
-        child = Task.objects.create(owner=self.user, title="child", parent=root, due_date=now)
-        grand = Task.objects.create(owner=self.user, title="grand", parent=child, due_date=now)
+        root = Task.objects.create(owner=self.user, title="root", task_type=Task.Horizon.TODAY, due_date=now)
+        child = Task.objects.create(owner=self.user, title="child", parent=root,
+                                    task_type=Task.Horizon.TODAY, due_date=now)
+        grand = Task.objects.create(owner=self.user, title="grand", parent=child,
+                                    task_type=Task.Horizon.TODAY, due_date=now)
         services.move_task(root, "LATER")
         for t in (root, child, grand):
             t.refresh_from_db()
-            self.assertEqual(services.horizon_for(t.due_date), Task.Horizon.LATER, t.title)
+            self.assertEqual(t.task_type, Task.Horizon.LATER, t.title)  # box propagated
+            self.assertEqual(t.due_date, now, t.title)                  # date untouched (BR-38)
 
 
 class RecurrenceGeneration(TestCase):

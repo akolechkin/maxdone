@@ -59,43 +59,47 @@ def horizon_for(due_date):
 
 
 def horizon_filter(qs, horizon_key):
-    """BR-20 (hybrid horizon): a horizon list = DATED tasks whose due_date falls in the
-    horizon (BR-7/BR-8) PLUS DATELESS tasks whose stored box (`task_type`) is this horizon.
+    """BR-38: a horizon list = tasks whose STORED box (`task_type`) is this horizon.
 
-    Dated tasks ignore `task_type` (it is derived from due_date); dateless tasks ignore
-    due_date (they hold the box they were created/sent to and never auto-migrate). The two
-    clauses are mutually exclusive (a row is either dated or not), so no double-counting.
+    The box is manual/stored, not derived from due_date (date and box are independent).
+    INBOX also absorbs the legacy UNDEFINED=0 box.
     """
-    from django.db.models import Q
     box = HORIZON_BY_KEY.get(horizon_key)
-    if horizon_key == "INBOX":
-        # dateless tasks explicitly in INBOX (default box) — incl. the legacy UNDEFINED=0
-        return qs.filter(due_date__isnull=True,
-                         task_type__in=[Task.Horizon.UNDEFINED, Task.Horizon.INBOX])
-    if horizon_key == "TODAY":
-        dated = Q(due_date__isnull=False, due_date__lte=_today_eod())
-    elif horizon_key == "WEEK":
-        dated = Q(due_date__gt=_today_eod(), due_date__lte=_week_eod())
-    elif horizon_key == "LATER":
-        dated = Q(due_date__gt=_week_eod())
-    else:
+    if box is None:
         return qs
-    return qs.filter(dated | Q(due_date__isnull=True, task_type=box))
+    if horizon_key == "INBOX":
+        return qs.filter(task_type__in=[Task.Horizon.UNDEFINED, Task.Horizon.INBOX])
+    return qs.filter(task_type=box)
 
 
-def due_for_horizon(horizon_key):
-    """BR-10: a due_date that lands a task in the target horizon (used by move + quick-add).
+# BR-38: box ordering, TODAY is the earliest. Pull-forward only ever moves toward TODAY.
+_BOX_RANK = {Task.Horizon.TODAY: 0, Task.Horizon.WEEK: 1, Task.Horizon.LATER: 2}
 
-    INBOX clears the date; the others pick a moment inside the horizon's range so
-    that horizon_for() of the result equals horizon_key.
+
+def pull_forward(user=None, now=None) -> int:
+    """BR-38: the ONE automatic box move — "pull forward so it doesn't get stale".
+
+    A task is moved to an EARLIER box only when ALL hold: it is currently in WEEK or
+    LATER, its `due_date` has come within an earlier box's range (horizon_for), and the
+    date is NOT in the past. One-directional (toward TODAY); never moves out of TODAY,
+    never backward, never touches dateless or past-due tasks. Returns the count moved.
+    Run on board load and/or daily — idempotent and order-independent.
     """
-    if horizon_key == "TODAY":
-        return _today_eod()
-    if horizon_key == "WEEK":
-        return _week_eod()
-    if horizon_key == "LATER":
-        return _week_eod() + timedelta(days=1)
-    return None  # INBOX
+    sod = _today_sod()
+    qs = Task.objects.filter(archived=False, done=False, due_date__isnull=False,
+                             task_type__in=[Task.Horizon.WEEK, Task.Horizon.LATER])
+    if user is not None:
+        qs = qs.filter(owner=user)
+    moved = 0
+    for t in qs:
+        if t.due_date < sod:                      # past-due: leave it where it is
+            continue
+        target = horizon_for(t.due_date)          # the box this date now belongs to
+        if _BOX_RANK.get(target, 9) < _BOX_RANK.get(t.task_type, 9):  # only earlier
+            t.task_type = target
+            t.save(update_fields=["task_type", "modified"])
+            moved += 1
+    return moved
 
 
 def set_done(task: Task, done: bool) -> Task:
@@ -159,10 +163,11 @@ def create_goal_from_template(template, owner, start_date):
             from_template=True, priority=next_priority(owner),
         )
     for tt in template.task_templates.all():
+        due = start_date + timedelta(days=tt.offset_days)
         Task.objects.create(
             owner=owner, title=tt.title, goal=goal,
             parent=milestone_tasks.get(tt.milestone_id),
-            due_date=start_date + timedelta(days=tt.offset_days),
+            due_date=due, task_type=horizon_for(due),  # BR-38: initial box by date
             from_template=True, priority=next_priority(owner),
         )
     return goal
@@ -345,7 +350,8 @@ def spawn_next_occurrence(task: Task, now=None, only_past: bool = False) -> "Tas
         owner=task.owner, title=task.title, note=task.note,
         priority=next_priority(task.owner), is_project=task.is_project,
         goal=task.goal, context=task.context, parent=task.parent,
-        due_date=next_due, recur_rule=child_rule, recur_parent_id=series_id,
+        due_date=next_due, task_type=horizon_for(next_due),  # BR-38: initial box by date
+        recur_rule=child_rule, recur_parent_id=series_id,
     )
     # the new occurrence gets a fresh (unchecked) copy of the checklist
     for item in task.checklist.all():
@@ -384,25 +390,27 @@ def materialize_due_recurrences(now=None) -> int:
 
 
 def move_task(task: Task, horizon_key: str) -> Task:
-    """Feature catalog #1 + BR-10 + BR-20: move between horizons, carrying the subtree.
+    """Feature catalog #1 + BR-38: manually move a task (and its subtree) to a box.
 
-    Dated horizons (TODAY/WEEK/LATER) re-date the task (horizon then derives from the
-    date, BR-7). INBOX has no date — it sets the dateless box (`task_type=INBOX`) and
-    clears due_date (BR-20). Either way the whole subtree is carried to the same box.
+    BR-38: a manual move sets the stored box (`task_type`) and does NOT touch due_date —
+    EXCEPT INBOX, which clears the date (BR-38 INBOX special case). No box→date
+    conversion (BR-35); the date stays whatever the user set.
     """
-    if horizon_key in HORIZON_BY_KEY:
-        _set_box_recursive(task, due_for_horizon(horizon_key), HORIZON_BY_KEY[horizon_key])
+    box = HORIZON_BY_KEY.get(horizon_key)
+    if box is not None:
+        _set_box_recursive(task, box, clear_date=(horizon_key == "INBOX"))
     return task
 
 
-def _set_box_recursive(task: Task, due, box: int) -> None:
-    # For dated targets save() re-derives task_type from due_date; for the dateless
-    # INBOX target the explicit box sticks (save() leaves task_type alone when due_date is None).
-    task.due_date = due
+def _set_box_recursive(task: Task, box: int, clear_date: bool) -> None:
     task.task_type = box
-    task.save(update_fields=["due_date", "task_type", "modified"])
+    fields = ["task_type", "modified"]
+    if clear_date:
+        task.due_date = None
+        fields.append("due_date")
+    task.save(update_fields=fields)
     for child in task.children.all():
-        _set_box_recursive(child, due, box)
+        _set_box_recursive(child, box, clear_date)
 
 
 def first_occurrence(rule_str: str, anchor=None):
@@ -428,7 +436,7 @@ def to_inbox(task: Task) -> Task:
     """BR-21: send a task to INBOX — clear due_date and set the dateless box to INBOX.
     BR-25: a recurring task keeps its `recur_rule` (the repeat just "sleeps" without a
     date until completed). Carries the whole subtree, like move/archive (BR-7)."""
-    _set_box_recursive(task, None, Task.Horizon.INBOX)
+    _set_box_recursive(task, Task.Horizon.INBOX, clear_date=True)
     return task
 
 

@@ -136,6 +136,7 @@ def _board_context(request, horizon="TODAY"):
 
 @login_required
 def board(request):
+    services.pull_forward(request.user)  # BR-38: the one automatic box move, on load
     horizon = request.GET.get("h", "TODAY")
     ctx = _board_context(request, horizon)
     if request.headers.get("HX-Request"):
@@ -180,18 +181,15 @@ def task_create(request):
         task = form.save(commit=False)
         task.owner = request.user
         task.priority = services.next_priority(request.user)
-        # BR-10: quick-add from a horizon column dates the task into that column,
-        # unless the user already gave it a due_date.
-        set_h = request.POST.get("set_horizon")
-        if set_h and not task.due_date:
-            task.due_date = services.due_for_horizon(set_h)
-        # BR-24: setting a repeat on a task with no date anchors it to the nearest rule date.
+        # BR-24: a repeat with no date anchors to the nearest rule date (recurrence needs one).
         if task.recur_rule and not task.due_date:
             task.due_date = services.first_occurrence(task.recur_rule)
-        # BR-20: a still-dateless task lands in the box active at creation (set_horizon for
-        # quick-add, else the viewed horizon), NOT forced into INBOX.
-        if not task.due_date:
-            box = set_h or request.GET.get("h", "INBOX")
+        # BR-36/BR-38: with a date → initial box derived from the date; dateless → keep it in
+        # the active tab's box WITHOUT stamping a date (a dateless task in tab X stays in X).
+        if task.due_date:
+            task.task_type = services.horizon_for(task.due_date)
+        else:
+            box = request.POST.get("set_horizon") or request.GET.get("h", "INBOX")
             task.task_type = services.HORIZON_BY_KEY.get(box, Task.Horizon.INBOX)
         services.apply_hidden_state(task)
         task.save()

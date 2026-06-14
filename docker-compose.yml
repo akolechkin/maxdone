@@ -40,6 +40,7 @@ services:
     command: >
       sh -c 'while true; do
                python manage.py materialize_recurrences || true;
+               python manage.py pull_forward_boxes || true;
                sleep $(( $(date -d "tomorrow 00:01" +%s) - $(date +%s) ));
              done'
     volumes:

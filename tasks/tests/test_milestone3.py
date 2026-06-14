@@ -14,7 +14,7 @@ from tasks.templatetags.mx import is_overdue
 
 
 class HybridHorizon(TestCase):
-    """BR-20: dated tasks derive the box from due_date; dateless tasks HOLD their box."""
+    """BR-38: the box (task_type) is STORED — due_date neither derives nor overrides it."""
 
     def setUp(self):
         self.user = User.objects.create_user("u", password="p")
@@ -35,15 +35,15 @@ class HybridHorizon(TestCase):
         self.assertEqual(services.horizon_filter(qs, "WEEK").count(), 1)
         self.assertEqual(services.horizon_filter(qs, "INBOX").count(), 0)
 
-    def test_dated_task_ignores_stored_box(self):
-        # stored task_type says LATER, but a today due_date wins → counted in TODAY
+    def test_dated_task_keeps_stored_box(self):  # BR-38: stored box wins; date never overrides
+        # task_type says LATER and the due_date is today — under BR-38 the box stays LATER
         t = Task.objects.create(owner=self.user, title="d", task_type=Task.Horizon.LATER,
                                 due_date=timezone.now())
         t.refresh_from_db()
-        self.assertEqual(t.task_type, Task.Horizon.TODAY)  # re-derived on save
+        self.assertEqual(t.task_type, Task.Horizon.LATER)  # NOT re-derived from due_date
         qs = Task.objects.filter(owner=self.user)
-        self.assertEqual(services.horizon_filter(qs, "TODAY").count(), 1)
-        self.assertEqual(services.horizon_filter(qs, "LATER").count(), 0)
+        self.assertEqual(services.horizon_filter(qs, "LATER").count(), 1)
+        self.assertEqual(services.horizon_filter(qs, "TODAY").count(), 0)
 
     def test_new_dateless_task_lands_in_active_box(self):
         # BR-20 replaces BR-9: a new dateless task takes the VIEWED box, not always INBOX
@@ -104,13 +104,15 @@ class OverdueHighlight(TestCase):
         self.assertFalse(is_overdue(None))
 
     def test_overdue_row_shows_fire(self):
-        # past due_date → horizon_for = TODAY (overdue lands in TODAY), shown with 🔥
-        Task.objects.create(owner=self.user, title="Late", due_date=timezone.now() - timedelta(days=2))
+        # an overdue task in the TODAY box: past due_date renders the 🔥 overdue chip
+        Task.objects.create(owner=self.user, title="Late", task_type=Task.Horizon.TODAY,
+                            due_date=timezone.now() - timedelta(days=2))
         r = self.client.get(reverse("board") + "?h=TODAY")
         self.assertContains(r, "🔥")
 
     def test_future_row_has_no_fire(self):
-        Task.objects.create(owner=self.user, title="Soon", due_date=timezone.now() + timedelta(days=40))
+        Task.objects.create(owner=self.user, title="Soon", task_type=Task.Horizon.LATER,
+                            due_date=timezone.now() + timedelta(days=40))
         r = self.client.get(reverse("board") + "?h=LATER")
         self.assertNotContains(r, "🔥")
 

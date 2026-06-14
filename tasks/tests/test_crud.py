@@ -54,12 +54,14 @@ class TaskCrud(TestCase):
         from tasks.forms import TaskForm
         self.assertNotIn("start_date", TaskForm(user=self.user).fields)
 
-    def test_move_horizon(self):  # feature catalog #1 / BR-10: move re-dates the task
-        from tasks import services
-        t = Task.objects.create(owner=self.user, title="m", due_date=timezone.now())
+    def test_move_horizon(self):  # feature catalog #1 / BR-38: move sets the box, keeps the date
+        t = Task.objects.create(owner=self.user, title="m", task_type=Task.Horizon.WEEK,
+                                due_date=timezone.now() + timedelta(days=40))
+        due_before = t.due_date
         self.client.post(reverse("task_move", args=[t.id, "LATER"]))
         t.refresh_from_db()
-        self.assertEqual(services.horizon_for(t.due_date), Task.Horizon.LATER)
+        self.assertEqual(t.task_type, Task.Horizon.LATER)  # box changed
+        self.assertEqual(t.due_date, due_before)           # date untouched (no box→date)
 
     def test_delete(self):
         t = Task.objects.create(owner=self.user, title="d", task_type=Task.Horizon.TODAY)
@@ -134,7 +136,7 @@ class Subtasks(TestCase):
         self.assertGreater(child.priority, 0.0)
 
     def test_board_lists_root_only(self):
-        parent = Task.objects.create(owner=self.user, title="ParentRoot", due_date=timezone.now())
+        parent = Task.objects.create(owner=self.user, title="ParentRoot", task_type=Task.Horizon.TODAY, due_date=timezone.now())
         Task.objects.create(owner=self.user, title="ChildHidden", parent=parent, due_date=timezone.now())
         r = self.client.get(reverse("board") + "?h=TODAY")
         self.assertContains(r, "ParentRoot")
@@ -191,7 +193,7 @@ class Projects(TestCase):
         self.assertFalse(t.is_project)
 
     def test_project_marked_in_list(self):
-        Task.objects.create(owner=self.user, title="ProjRow", due_date=timezone.now(), is_project=True)
+        Task.objects.create(owner=self.user, title="ProjRow", task_type=Task.Horizon.TODAY, due_date=timezone.now(), is_project=True)
         r = self.client.get(reverse("board") + "?h=TODAY")
         self.assertContains(r, "проект")
 
@@ -327,10 +329,10 @@ class Sorting(TestCase):
         self.client.login(username="u", password="p")
 
     def test_sort_by_due_orders_ascending(self):
-        now = timezone.now()  # all far-future -> same horizon (LATER), distinct due dates
-        Task.objects.create(owner=self.user, title="Late", due_date=now + timedelta(days=50))
-        Task.objects.create(owner=self.user, title="Soon", due_date=now + timedelta(days=30))
-        Task.objects.create(owner=self.user, title="Mid", due_date=now + timedelta(days=40))
+        now = timezone.now()  # all in the LATER box, distinct due dates for sort
+        Task.objects.create(owner=self.user, title="Late", task_type=Task.Horizon.LATER, due_date=now + timedelta(days=50))
+        Task.objects.create(owner=self.user, title="Soon", task_type=Task.Horizon.LATER, due_date=now + timedelta(days=30))
+        Task.objects.create(owner=self.user, title="Mid", task_type=Task.Horizon.LATER, due_date=now + timedelta(days=40))
         self.client.post(reverse("set_sort"), {"sort": "due"})
         html = self.client.get(reverse("board") + "?h=LATER").content.decode()
         self.assertLess(html.index("Soon"), html.index("Mid"))
@@ -358,13 +360,12 @@ class QuickAdd(TestCase):
         self.assertContains(r, "Быстро добавить")
 
     def test_quick_add_creates_task_in_current_horizon(self):
-        from tasks import services
-        # quick-add posts set_horizon; the task is dated into that column (BR-10)
+        # BR-36/BR-38: quick-add in a tab keeps the task DATELESS in that box (no date stamped)
         self.client.post(reverse("task_create") + "?h=LATER",
                          {"title": "Quick", "set_horizon": "LATER"})
         t = Task.objects.get(title="Quick")
-        self.assertIsNotNone(t.due_date)
-        self.assertEqual(services.horizon_for(t.due_date), Task.Horizon.LATER)
+        self.assertIsNone(t.due_date)
+        self.assertEqual(t.task_type, Task.Horizon.LATER)
 
 
 class TaskPreferences(TestCase):
@@ -398,7 +399,7 @@ class GoalPause(TestCase):
         self.client.login(username="u", password="p")
         self.goal = Goal.objects.create(owner=self.user, title="G", goal_type="PRIVATE",
                                         status=Goal.Status.ACTIVE)
-        Task.objects.create(owner=self.user, title="GoalTask", due_date=timezone.now(), goal=self.goal)
+        Task.objects.create(owner=self.user, title="GoalTask", task_type=Task.Horizon.TODAY, due_date=timezone.now(), goal=self.goal)
 
     def test_active_goal_tasks_visible(self):
         r = self.client.get(reverse("board") + "?h=TODAY")
@@ -435,8 +436,8 @@ class Categories(TestCase):
 
     def test_group_by_goal_renders_headers(self):
         g = Goal.objects.create(owner=self.user, title="MyGoal", goal_type="PRIVATE", status=Goal.Status.ACTIVE)
-        Task.objects.create(owner=self.user, title="WithGoal", due_date=timezone.now(), goal=g)
-        Task.objects.create(owner=self.user, title="NoGoal", due_date=timezone.now())
+        Task.objects.create(owner=self.user, title="WithGoal", task_type=Task.Horizon.TODAY, due_date=timezone.now(), goal=g)
+        Task.objects.create(owner=self.user, title="NoGoal", task_type=Task.Horizon.TODAY, due_date=timezone.now())
         self.client.post(reverse("set_group"), {"group_by": "goal"})
         r = self.client.get(reverse("board") + "?h=TODAY")
         self.assertContains(r, "MyGoal")
@@ -500,7 +501,7 @@ class ShowHidden(TestCase):
         self.client = Client()
         self.client.login(username="u", password="p")
         self.hidden = Task.objects.create(
-            owner=self.user, title="HiddenOne", due_date=timezone.now(),
+            owner=self.user, title="HiddenOne", task_type=Task.Horizon.TODAY, due_date=timezone.now(),
             state=Task.State.HIDDEN, hide_until_date=timezone.now() + timedelta(days=3))
 
     def test_hidden_excluded_by_default(self):
@@ -654,9 +655,9 @@ class RecurGroup(TestCase):
         self.client = Client()
         self.client.login(username="u", password="p")
         now = timezone.now()
-        self.root = Task.objects.create(owner=self.user, title="Полить",
+        self.root = Task.objects.create(owner=self.user, title="Полить", task_type=Task.Horizon.TODAY,
                                         due_date=now - timedelta(days=3), recur_rule="FREQ=DAILY")
-        self.inst = Task.objects.create(owner=self.user, title="Полить",
+        self.inst = Task.objects.create(owner=self.user, title="Полить", task_type=Task.Horizon.TODAY,
                                         due_date=now - timedelta(days=2), recur_rule="FREQ=DAILY",
                                         recur_parent_id=self.root.id)
 
