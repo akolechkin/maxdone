@@ -3,7 +3,8 @@
 {% block content %}
 <div class="p-3 max-w-[1100px] mx-auto"
      x-data="{ editorOpen: false, sidebarOpen: false }"
-     @task-saved.window="editorOpen=false">
+     @task-saved.window="editorOpen=false"
+     @close-editor.window="editorOpen=false">
   <div class="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] bg-surface border border-line rounded-lg overflow-hidden min-h-[560px]">
 
     {# mobile backdrop for the sidebar drawer (md+: never shown) #}

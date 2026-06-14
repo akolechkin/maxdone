@@ -3,13 +3,18 @@
 {% else %}
   {% url 'task_create' as post_url %}
 {% endif %}
+{% comment %}BR-33: draft + edit-buffer scope. markDirty tracks unsaved edits; titleBlur creates
+a draft when a new task's title is left for another field; close/cancel go through confirmClose/
+cancelEdit. All extra UI is gated by task_edit_draft so flag-off === the plain submit form.{% endcomment %}
+<div x-data="taskEditor({ flag: {{ task_edit_draft|yesno:'true,false' }}, isNew: {{ task|yesno:'false,true' }}, draftUrl: '{% url 'task_create' %}?h={{ horizon|default:'TODAY' }}', detailUrl: '{% if task %}{% url 'task_detail' task.id %}?h={{ horizon|default:'TODAY' }}{% endif %}' })"
+     @input.capture="markDirty()" @change.capture="markDirty()" @blur.capture="titleBlur($event)">
 <div class="flex items-center gap-1.5 mb-3.5">
   <span class="text-xs text-ink-faint flex-1">{% if task %}Редактирование{% else %}Новая задача{% endif %}</span>
   {% if task %}
   {# duplicate (buildTaskCopy → task_copy) #}
   <button type="button" title="Дублировать" aria-label="Дублировать"
           hx-post="{% url 'task_copy' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
-          @click="editorOpen=false" class="text-ink-faint hover:text-ink p-1 leading-none">
+          @click="$dispatch('close-editor')" class="text-ink-faint hover:text-ink p-1 leading-none">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round">
       <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -18,7 +23,7 @@
   {# to inbox (to_inbox → task_to_inbox): clears the date + sends to INBOX (BR-21/25) #}
   <button type="button" title="В инбокс" aria-label="В инбокс"
           hx-post="{% url 'task_to_inbox' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
-          @click="editorOpen=false" class="text-ink-faint hover:text-ink p-1 leading-none">
+          @click="$dispatch('close-editor')" class="text-ink-faint hover:text-ink p-1 leading-none">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round">
       <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
@@ -27,7 +32,7 @@
   {# archive (set_archived → task_archive) — also closes the editor #}
   <button type="button" title="В архив" aria-label="В архив"
           hx-post="{% url 'task_archive' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
-          @click="editorOpen=false" class="text-ink-faint hover:text-ink p-1 leading-none">
+          @click="$dispatch('close-editor')" class="text-ink-faint hover:text-ink p-1 leading-none">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round">
       <polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/>
@@ -37,7 +42,7 @@
   <button type="button" title="Удалить" aria-label="Удалить"
           hx-post="{% url 'task_delete' task.id %}?h={{ horizon|default:'TODAY' }}" hx-target="#task-list"
           hx-confirm="Удалить задачу навсегда?"
-          @click="editorOpen=false" class="text-ink-faint hover:text-red-600 p-1 leading-none">
+          @click="$dispatch('close-editor')" class="text-ink-faint hover:text-red-600 p-1 leading-none">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round">
       <polyline points="3 6 5 6 21 6"/>
@@ -47,7 +52,7 @@
   {% endif %}
   {# close #}
   <button type="button" title="Закрыть" aria-label="Закрыть"
-          @click="editorOpen=false" class="text-ink-muted hover:text-ink p-1 leading-none">
+          @click="confirmClose()" class="text-ink-muted hover:text-ink p-1 leading-none">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
   </button>
@@ -174,7 +179,16 @@
   <div>{{ form.note }}</div>
   </fieldset>
 
-  <button type="submit" class="btn-accent w-full">{% if task %}Сохранить{% else %}Создать{% endif %}</button>
+  <div class="flex gap-2">
+    {% if task_edit_draft %}
+    <button type="button" @click="cancelEdit()"
+            class="px-3 py-2 rounded-md border border-line text-ink-muted text-sm">Отмена</button>
+    {% endif %}
+    <button type="submit" class="btn-accent flex-1">
+      <span class="save-default">{% if task %}Сохранить{% else %}Создать{% endif %}</span>
+      <span class="save-saving">Сохранение…</span>
+    </button>
+  </div>
 </form>
 
 {% if task %}
@@ -187,3 +201,4 @@
   {% include "tasks/_checklist.html" %}
 </div>
 {% endif %}
+</div>{# /taskEditor #}

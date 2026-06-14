@@ -199,6 +199,13 @@ def task_create(request):
         request.session["pref_goal"] = str(task.goal_id or "")
         request.session["pref_context"] = str(task.context_id or "")
         request.session["pref_is_project"] = task.is_project
+        # BR-33: draft-on-blur — keep editing the now-persisted task (edit mode) and refresh
+        # the list out-of-band, instead of closing the editor. Additive + flag-gated on the
+        # frontend (only the draft editor sends draft=1); inert when the flag is off.
+        if request.GET.get("draft"):
+            ctx = _board_context(request, request.GET.get("h", "TODAY"))
+            ctx.update({"task": task, "form": TaskForm(instance=task, user=request.user)})
+            return render(request, "tasks/_task_editor_draft.html", ctx)
         ctx = _board_context(request, request.GET.get("h", "TODAY"))
         resp = render(request, "tasks/_task_list.html", ctx)
         resp["HX-Trigger"] = "taskSaved"

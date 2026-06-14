@@ -11,6 +11,10 @@ ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
 # HTTPS origins trusted for CSRF behind TLS (e.g. "https://example.com"). Empty in dev.
 CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o]
 
+# BR-33: task editor as a draft + client-side edit buffer. Default ON; set
+# DJANGO_TASK_EDIT_DRAFT=0 to fall back to the plain single-submit editor form.
+TASK_EDIT_DRAFT = os.environ.get("DJANGO_TASK_EDIT_DRAFT", "1") == "1"
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -42,6 +46,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "tasks.context_processors.feature_flags",
             ],
         },
     },

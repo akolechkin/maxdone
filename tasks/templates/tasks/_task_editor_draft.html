@@ -1,0 +1,5 @@
+{% comment %}BR-33: response to a draft-on-blur create. Swaps the editor (now in EDIT mode for
+the freshly-persisted task) into #editor-body, and refreshes the list out-of-band so the new
+task shows up. No taskSaved trigger → the editor stays open for continued editing.{% endcomment %}
+{% include "tasks/_task_editor.html" %}
+<div id="task-list" class="p-4 flex-1" hx-swap-oob="true">{% include "tasks/_task_list.html" %}</div>

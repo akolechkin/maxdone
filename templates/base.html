@@ -42,6 +42,21 @@
     /* roomier vertical rhythm for editor / dialog rows — plain CSS so it applies
        reliably to HTMX-injected and teleported markup (not dependent on the CDN). */
     .form-spaced > * + *{margin-top:1.25rem}
+    /* BR-34: global network-activity bar + error toast + save-action state. */
+    #net-bar{position:fixed;top:0;left:0;height:2px;width:100%;z-index:60;overflow:hidden;
+      pointer-events:none;opacity:0;transition:opacity .2s}
+    #net-bar.is-active{opacity:1}
+    #net-bar::before{content:"";position:absolute;inset:0;width:40%;background:#534AB7;
+      animation:net-slide 1s infinite linear}
+    #net-bar.is-error::before{background:#dc2626;animation:none;width:100%}
+    @keyframes net-slide{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
+    #net-error{position:fixed;top:10px;right:10px;z-index:61;background:#dc2626;color:#fff;
+      font-size:.75rem;padding:.375rem .75rem;border-radius:8px;opacity:0;transform:translateY(-6px);
+      transition:opacity .2s,transform .2s;pointer-events:none}
+    #net-error.is-shown{opacity:1;transform:translateY(0)}
+    .save-saving{display:none}
+    .htmx-request .save-default{display:none}
+    .htmx-request .save-saving{display:inline}
   </style>
 
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
@@ -49,11 +64,78 @@
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 </head>
 <body class="bg-surface-alt text-ink font-sans" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+  {# BR-34: network activity indicators (presentation only) #}
+  <div id="net-bar" aria-hidden="true"></div>
+  <div id="net-error" role="status">Не удалось сохранить</div>
   {% block content %}{% endblock %}
   <script>
     document.body.addEventListener("taskSaved", () => {
+      window.__editorDirty = false;            // BR-33: a save clears the unsaved-edit guard
       window.dispatchEvent(new CustomEvent("task-saved"));
     });
+
+    // BR-34: show the top bar while any HTMX request is in flight; flash red + toast on error.
+    (function () {
+      const bar = () => document.getElementById("net-bar");
+      const toast = () => document.getElementById("net-error");
+      let inflight = 0, hideT;
+      const showErr = () => {
+        const b = bar(); if (b) b.classList.add("is-active", "is-error");
+        const t = toast(); if (t) { t.classList.add("is-shown"); setTimeout(() => t.classList.remove("is-shown"), 2500); }
+      };
+      document.body.addEventListener("htmx:beforeRequest", () => {
+        inflight++; clearTimeout(hideT);
+        const b = bar(); if (b) { b.classList.remove("is-error"); b.classList.add("is-active"); }
+      });
+      document.body.addEventListener("htmx:afterRequest", () => {
+        inflight = Math.max(0, inflight - 1);
+        if (inflight === 0) hideT = setTimeout(() => { const b = bar(); if (b) b.classList.remove("is-active"); }, 150);
+      });
+      document.body.addEventListener("htmx:responseError", showErr);
+      document.body.addEventListener("htmx:sendError", showErr);
+    })();
+
+    // BR-33: native guard for hardware-back / refresh / tab-close while edits are unsaved.
+    window.addEventListener("beforeunload", (e) => {
+      if (window.__editorDirty) { e.preventDefault(); e.returnValue = ""; }
+    });
+
+    // BR-33: task editor draft + edit-buffer state (additive; only active when task_edit_draft).
+    window.taskEditor = function (opts) {
+      opts = opts || {};
+      return {
+        flag: !!opts.flag,
+        isNew: !!opts.isNew,
+        draftUrl: opts.draftUrl || "",
+        detailUrl: opts.detailUrl || "",
+        dirty: false,
+        creating: false,
+        init() { window.__editorDirty = false; },
+        markDirty() { if (this.flag) { this.dirty = true; window.__editorDirty = true; } },
+        // Draft-on-blur: when the user leaves a non-empty title FOR ANOTHER FIELD, persist the
+        // task and re-render the editor in edit mode. Moving to a button / outside → no draft
+        // (so clicking Создать / × / archive never double-creates).
+        titleBlur(e) {
+          if (!this.flag || !this.isNew || this.creating) return;
+          const rt = e.relatedTarget;
+          if (!(rt && rt.matches && rt.matches("input,select,textarea") && rt.name !== "title")) return;
+          if (!e.target || e.target.name !== "title" || !e.target.value.trim()) return;
+          this.creating = true;
+          window.htmx.ajax("POST", this.draftUrl, { source: e.target.closest("form"), target: "#editor-body", values: { draft: "1" }, headers: { "X-CSRFToken": _csrf() } });
+        },
+        cancelEdit() {
+          if (this.dirty && !confirm("Отменить несохранённые изменения?")) return;
+          this.dirty = false; window.__editorDirty = false;
+          if (this.detailUrl) window.htmx.ajax("GET", this.detailUrl, { target: "#editor-body" });
+          else this.$dispatch("close-editor");
+        },
+        confirmClose() {
+          if (this.flag && this.dirty && !confirm("Закрыть редактор? Несохранённые изменения будут потеряны.")) return;
+          this.dirty = false; window.__editorDirty = false;
+          this.$dispatch("close-editor");
+        },
+      };
+    };
 
     // Drag&drop reorder (spec/06 + BR-32): on drop, send the moved row + its neighbours so
     // the server reorders. Generic over the row id prefix (data-id-prefix, default "task-"):
