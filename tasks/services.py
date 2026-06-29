@@ -253,6 +253,24 @@ def _parse_until(value: str):
     return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
 
 
+def _past_until(next_due, until: str) -> bool:
+    """BR-39: is `next_due` past the series' UNTIL bound (so the series should end)?
+
+    A date-only UNTIL (`YYYYMMDD`, what the picker emits) means "through the end of
+    that calendar day" — so it is compared by DATE and is INCLUSIVE of the UNTIL day.
+    Comparing it as a datetime would treat it as midnight and wrongly drop any
+    occurrence that falls on the UNTIL day with a non-zero time (e.g. completion-time
+    anchored). A datetime UNTIL (`...ThhmmssZ`) is compared by instant. Unparsable
+    UNTIL never terminates the series."""
+    until = until.strip().upper()
+    until_dt = _parse_until(until)
+    if until_dt is None:
+        return False
+    if "T" in until:
+        return next_due > until_dt
+    return timezone.localtime(next_due).date() > until_dt.date()
+
+
 # A recurring series is a chain of Task rows that share a "series id" — the id of
 # the first occurrence. Children carry recur_parent_id = series id (the first row's
 # recur_parent_id is blank). The series root row also holds the EXDATE set (skipped
@@ -329,10 +347,8 @@ def spawn_next_occurrence(task: Task, now=None, only_past: bool = False) -> "Tas
         return None
 
     until = parts.get("UNTIL")
-    if until:
-        until_dt = _parse_until(until)
-        if until_dt and next_due > until_dt:
-            return None
+    if until and _past_until(next_due, until):
+        return None
 
     if only_past and now is not None and next_due > now:
         return None

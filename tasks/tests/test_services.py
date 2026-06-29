@@ -142,6 +142,42 @@ class RecurrenceGeneration(TestCase):
         services.set_done(t, True)
         self.assertEqual(Task.objects.filter(owner=self.user).count(), 1)
 
+    def _complete_chain(self, root, limit=10):
+        """Complete a recurring task and its spawned children in order, returning the
+        full chain (root first). Stops when completion spawns no further occurrence."""
+        chain = [root]
+        cur = root
+        for _ in range(limit):
+            services.set_done(cur, True)
+            nxt = Task.objects.filter(owner=self.user, done=False).order_by("due_date").first()
+            if nxt is None:
+                break
+            chain.append(nxt)
+            cur = nxt
+        return chain
+
+    def test_until_inclusive_two_days_out(self):
+        # BR-39: a daily task with UNTIL two days out spawns the occurrences up to AND
+        # including the UNTIL date, then stops. The anchor carries a time-of-day (real
+        # tasks do — completion_date / a picked time), so UNTIL (a date) must compare by
+        # calendar date, not be treated as midnight of that day.
+        due = timezone.make_aware(datetime(2026, 6, 28, 14, 30))
+        until = (due.date() + timedelta(days=2)).strftime("%Y%m%d")  # 20260630
+        root = self._recurring(f"FREQ=DAILY;UNTIL={until}", due)
+        chain = self._complete_chain(root)
+        dates = [t.due_date.date().isoformat() for t in chain]
+        self.assertEqual(dates, ["2026-06-28", "2026-06-29", "2026-06-30"])
+        # series is over: completing the last occurrence spawns nothing
+        self.assertEqual(Task.objects.filter(owner=self.user).count(), 3)
+
+    def test_count_three_spawns_exactly_three(self):
+        # BR-39 (COUNT side): "end after N times" yields exactly N occurrences total.
+        due = timezone.make_aware(datetime(2026, 6, 28, 14, 30))
+        root = self._recurring("FREQ=DAILY;COUNT=3", due)
+        chain = self._complete_chain(root)
+        self.assertEqual(len(chain), 3)
+        self.assertEqual(Task.objects.filter(owner=self.user).count(), 3)
+
     def test_non_recurring_does_not_spawn(self):
         t = Task.objects.create(owner=self.user, title="once", due_date=timezone.now())
         services.set_done(t, True)
